@@ -25,6 +25,18 @@ Your goal is to qualify outbound leads interested in our AI automation services:
   custom: ''
 };
 
+// State for active simulated call
+let simState = {
+  active: false,
+  callSid: null,
+  direction: 'inbound',
+  startTime: null,
+  timerInterval: null,
+  transcript: [],
+  recognition: null,
+  isListening: false
+};
+
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
   fetchSystemStatus();
@@ -32,6 +44,7 @@ document.addEventListener('DOMContentLoaded', () => {
   fetchAppointments();
   fetchContacts();
   initFormListeners();
+  initSpeechRecognition();
 
   // Auto-refresh logs every 6 seconds
   setInterval(() => {
@@ -39,6 +52,258 @@ document.addEventListener('DOMContentLoaded', () => {
     fetchAppointments();
   }, 6000);
 });
+
+// Setup Speech Recognition
+function initSpeechRecognition() {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    console.warn('Web Speech API not supported in this browser. Fallback to text input available.');
+    return;
+  }
+
+  simState.recognition = new SpeechRecognition();
+  simState.recognition.continuous = true;
+  simState.recognition.interimResults = false;
+  simState.recognition.lang = 'en-US';
+
+  simState.recognition.onresult = (event) => {
+    const lastResult = event.results[event.results.length - 1];
+    if (lastResult.isFinal) {
+      const userText = lastResult[0].transcript.trim();
+      if (userText) {
+        handleUserSpeech(userText);
+      }
+    }
+  };
+
+  simState.recognition.onerror = (event) => {
+    console.warn('Speech recognition error:', event.error);
+    if (simState.isListening) {
+      try { simState.recognition.start(); } catch (_) {}
+    }
+  };
+
+  simState.recognition.onend = () => {
+    if (simState.active && simState.isListening) {
+      try { simState.recognition.start(); } catch (_) {}
+    }
+  };
+}
+
+// Speak aloud using browser TTS
+function speakAloud(text, callback) {
+  if (!('speechSynthesis' in window)) {
+    if (callback) callback();
+    return;
+  }
+
+  window.speechSynthesis.cancel(); // Stop any pending speech
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.rate = 1.05;
+  utterance.pitch = 1.0;
+
+  // Try finding a natural female or friendly English voice
+  const voices = window.speechSynthesis.getVoices();
+  const naturalVoice = voices.find(v => v.lang.startsWith('en') && (v.name.includes('Natural') || v.name.includes('Samantha') || v.name.includes('Google') || v.name.includes('Zira')));
+  if (naturalVoice) {
+    utterance.voice = naturalVoice;
+  }
+
+  updateSimStatus('AI is Speaking...', true);
+
+  utterance.onend = () => {
+    updateSimStatus('Listening for your voice...', false);
+    if (callback) callback();
+  };
+
+  utterance.onerror = () => {
+    updateSimStatus('Listening for your voice...', false);
+    if (callback) callback();
+  };
+
+  window.speechSynthesis.speak(utterance);
+}
+
+// Start Local In-Browser Simulator Call
+function startSimulatedCall(direction) {
+  if (simState.active) return;
+
+  simState.active = true;
+  simState.callSid = `sim_${Date.now()}`;
+  simState.direction = direction;
+  simState.startTime = Date.now();
+  simState.transcript = [];
+
+  document.getElementById('simCallControls').style.display = 'none';
+  document.getElementById('simActivePanel').style.display = 'flex';
+  document.getElementById('simCallTitle').textContent = direction === 'inbound' 
+    ? 'Incoming Call from +1-LOCAL-USER' 
+    : 'Calling Out to +1-LOCAL-USER';
+  document.getElementById('simTranscriptFeed').innerHTML = '';
+
+  // Start timer
+  simState.timerInterval = setInterval(updateSimTimer, 1000);
+
+  // Initial greeting
+  const greeting = direction === 'inbound'
+    ? "Hello! Thanks for calling. My name is Aura, your AI voice assistant. How can I help you today?"
+    : "Hi there! This is Aura following up regarding your inquiry. How are you doing today?";
+
+  addSimMessage('assistant', greeting);
+  speakAloud(greeting, () => {
+    startListening();
+  });
+}
+
+function updateSimTimer() {
+  const elapsed = Math.floor((Date.now() - simState.startTime) / 1000);
+  const mins = String(Math.floor(elapsed / 60)).padStart(2, '0');
+  const secs = String(elapsed % 60).padStart(2, '0');
+  document.getElementById('simTimer').textContent = `${mins}:${secs}`;
+}
+
+function updateSimStatus(text, isSpeaking) {
+  const indicator = document.getElementById('simStatusText');
+  const wave = document.querySelector('.voice-wave');
+  if (indicator) indicator.textContent = text;
+  if (wave) wave.style.opacity = isSpeaking ? '1' : '0.4';
+}
+
+function startListening() {
+  if (!simState.recognition) return;
+  try {
+    simState.recognition.start();
+    simState.isListening = true;
+    const micBtn = document.getElementById('simMicBtn');
+    micBtn.classList.add('active');
+    document.getElementById('micText').textContent = 'Listening...';
+  } catch (_) {}
+}
+
+function stopListening() {
+  if (!simState.recognition) return;
+  simState.isListening = false;
+  try { simState.recognition.stop(); } catch (_) {}
+  const micBtn = document.getElementById('simMicBtn');
+  micBtn.classList.remove('active');
+  document.getElementById('micText').textContent = 'Mic Off';
+}
+
+function toggleMicrophone() {
+  if (simState.isListening) {
+    stopListening();
+  } else {
+    startListening();
+  }
+}
+
+// Handle User speech turn
+async function handleUserSpeech(userText) {
+  if (!simState.active) return;
+  stopListening();
+
+  addSimMessage('user', userText);
+
+  try {
+    const res = await fetch('/api/simulator/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        callerPhone: '+1-LOCAL-USER',
+        callSid: simState.callSid,
+        userText,
+        history: simState.transcript
+      })
+    });
+
+    const data = await res.json();
+
+    if (data.toolExecuted) {
+      addSimMessage('tool', `⚙️ Tool executed: ${data.toolExecuted} (${JSON.stringify(data.toolResult || {})})`);
+      fetchAppointments();
+      fetchContacts();
+    }
+
+    addSimMessage('assistant', data.replyText);
+    speakAloud(data.replyText, () => {
+      if (simState.active) {
+        startListening();
+      }
+    });
+  } catch (err) {
+    console.error('Simulator chat error:', err);
+    startListening();
+  }
+}
+
+function sendSimText() {
+  const input = document.getElementById('simTextInput');
+  const text = input.value.trim();
+  if (text) {
+    input.value = '';
+    handleUserSpeech(text);
+  }
+}
+
+function addSimMessage(role, text) {
+  const feed = document.getElementById('simTranscriptFeed');
+  const div = document.createElement('div');
+  const time = new Date().toLocaleTimeString();
+
+  if (role === 'user') {
+    div.className = 'sim-msg sim-msg-user';
+    div.innerHTML = `<strong>You:</strong> ${escapeHtml(text)}`;
+    simState.transcript.push(`[${time}] USER: ${text}`);
+  } else if (role === 'assistant') {
+    div.className = 'sim-msg sim-msg-ai';
+    div.innerHTML = `<strong>Aura:</strong> ${escapeHtml(text)}`;
+    simState.transcript.push(`[${time}] AURA: ${text}`);
+  } else {
+    div.className = 'sim-msg sim-msg-tool';
+    div.innerHTML = escapeHtml(text);
+  }
+
+  feed.appendChild(div);
+  feed.scrollTop = feed.scrollHeight;
+}
+
+// End Simulated Call
+async function endSimulatedCall() {
+  if (!simState.active) return;
+
+  stopListening();
+  if ('speechSynthesis' in window) {
+    window.speechSynthesis.cancel();
+  }
+
+  clearInterval(simState.timerInterval);
+  const duration = Math.max(1, Math.floor((Date.now() - simState.startTime) / 1000));
+  const fullTranscript = simState.transcript.join('\n');
+
+  try {
+    await fetch('/api/simulator/end', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        callSid: simState.callSid,
+        callerPhone: '+1-LOCAL-USER',
+        transcript: fullTranscript,
+        durationSeconds: duration
+      })
+    });
+  } catch (err) {
+    console.error('Failed to end simulated call:', err);
+  }
+
+  simState.active = false;
+  document.getElementById('simActivePanel').style.display = 'none';
+  document.getElementById('simCallControls').style.display = 'flex';
+
+  // Refresh tables
+  fetchCalls();
+  fetchAppointments();
+  fetchContacts();
+}
 
 // Fetch system config and status
 async function fetchSystemStatus() {
@@ -48,11 +313,11 @@ async function fetchSystemStatus() {
 
     const statusBadges = document.getElementById('statusBadges');
     statusBadges.innerHTML = `
-      <span class="badge ${data.openaiConfigured ? 'badge-success' : 'badge-danger'}">
-        ● OpenAI Realtime: ${data.openaiConfigured ? 'Connected' : 'Missing API Key'}
+      <span class="badge ${data.openaiConfigured ? 'badge-success' : 'badge-warning'}">
+        ● OpenAI: ${data.openaiConfigured ? 'Connected' : 'Free Simulator Mode'}
       </span>
-      <span class="badge ${data.twilioConfigured ? 'badge-success' : 'badge-danger'}">
-        ● Twilio Voice: ${data.twilioConfigured ? `Ready (${data.twilioNumber})` : 'Missing Credentials'}
+      <span class="badge ${data.twilioConfigured ? 'badge-success' : 'badge-warning'}">
+        ● Twilio: ${data.twilioConfigured ? `Ready (${data.twilioNumber})` : 'Webphone Mode'}
       </span>
     `;
 
@@ -78,7 +343,7 @@ async function fetchCalls() {
 
     const tbody = document.getElementById('callsTableBody');
     if (calls.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="7" class="empty-state">No calls recorded yet. Place an outbound call or dial inbound to test!</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="7" class="empty-state">No calls recorded yet. Click 'Simulate Inbound Call' above to test right now!</td></tr>`;
       return;
     }
 
@@ -158,7 +423,6 @@ async function fetchContacts() {
 
 // Event Listeners
 function initFormListeners() {
-  // Preset prompt change
   const presetSelect = document.getElementById('personaPreset');
   const customGroup = document.getElementById('customPromptGroup');
 
@@ -172,7 +436,7 @@ function initFormListeners() {
     }
   });
 
-  // Outbound Call submit
+  // Outbound Call submit (Twilio)
   document.getElementById('outboundForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const phoneInput = document.getElementById('phoneNumber');
@@ -223,7 +487,6 @@ function initFormListeners() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt })
       });
-      const data = await res.json();
       alert('AI persona prompt updated successfully!');
     } catch (err) {
       alert('Failed to update prompt.');

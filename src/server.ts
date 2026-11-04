@@ -10,6 +10,7 @@ import { config } from './config.js';
 import { twilioService } from './services/twilio.service.js';
 import { RealtimeVoiceSession } from './services/realtime.service.js';
 import { dbService } from './db/database.js';
+import { localSimulatorService } from './services/simulator.service.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -121,6 +122,43 @@ app.get('/ws/media-stream', { websocket: true }, (ws: any) => {
     console.log('[WebSocket] Twilio Media Stream client disconnected.');
     session.endSession();
   });
+});
+
+// --- REST API: Local Testing Simulator (Zero Accounts Needed) ---
+app.post('/api/simulator/chat', async (req) => {
+  const { callerPhone, callSid, userText, history } = req.body as {
+    callerPhone: string;
+    callSid: string;
+    userText: string;
+    history: any[];
+  };
+
+  const result = await localSimulatorService.processSimulatorTurn(
+    callerPhone || '+1-LOCAL-TEST',
+    callSid || `sim_${Date.now()}`,
+    userText || '',
+    history || []
+  );
+
+  return result;
+});
+
+app.post('/api/simulator/end', async (req) => {
+  const { callSid, callerPhone, transcript, durationSeconds } = req.body as {
+    callSid: string;
+    callerPhone: string;
+    transcript: string;
+    durationSeconds: number;
+  };
+
+  const saved = localSimulatorService.finishSimulatedCall(
+    callSid,
+    callerPhone || '+1-LOCAL-TEST',
+    transcript || '',
+    durationSeconds || 10
+  );
+
+  return saved;
 });
 
 // --- REST API: Trigger Outbound Call ---

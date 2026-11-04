@@ -25,6 +25,64 @@
       </div>
     </header>
 
+    <!-- Live Voice Simulator Banner (Zero Account Required) -->
+    <section class="card simulator-card">
+      <div class="card-header">
+        <div>
+          <h2>🎙️ In-Browser Voice Caller Simulator <span class="pill pill-success">100% Free & Local</span></h2>
+          <p class="card-description" style="margin-bottom: 0;">Test the complete voice agent right now using your computer microphone and speakers — <strong>no Twilio or OpenAI account needed</strong>!</p>
+        </div>
+        <div id="simCallControls">
+          <button class="btn btn-primary" id="startSimInboundBtn" onclick="startSimulatedCall('inbound')">
+            <span>📲</span> Simulate Inbound Call
+          </button>
+          <button class="btn btn-secondary" id="startSimOutboundBtn" onclick="startSimulatedCall('outbound')">
+            <span>📞</span> Simulate Outbound Call
+          </button>
+        </div>
+      </div>
+
+      <!-- Active Call Panel -->
+      <div id="simActivePanel" class="sim-active-panel" style="display: none;">
+        <div class="sim-call-header">
+          <div class="call-identity">
+            <span class="pulsing-dot"></span>
+            <div>
+              <strong id="simCallTitle">Call In-Progress</strong>
+              <div class="sim-timer" id="simTimer">00:00</div>
+            </div>
+          </div>
+          <button class="btn btn-danger btn-sm" id="endSimCallBtn" onclick="endSimulatedCall()">
+            <span>🔴</span> Hang Up Call
+          </button>
+        </div>
+
+        <div class="sim-live-display">
+          <div class="sim-status-indicator" id="simStatusIndicator">
+            <span class="voice-wave"><span></span><span></span><span></span><span></span></span>
+            <span id="simStatusText">AI Speaking...</span>
+          </div>
+          <div class="sim-transcript-feed" id="simTranscriptFeed">
+            <!-- Messages stream here in real time -->
+          </div>
+        </div>
+
+        <!-- Optional Mic / Text Input -->
+        <div class="sim-input-bar">
+          <button class="btn btn-mic" id="simMicBtn" onclick="toggleMicrophone()">
+            <span id="micIcon">🎤</span> <span id="micText">Speak Now</span>
+          </button>
+          <input 
+            type="text" 
+            id="simTextInput" 
+            placeholder="Or type here to speak (e.g., 'I want to book an appointment for tomorrow')..." 
+            onkeydown="if(event.key==='Enter') sendSimText()"
+          />
+          <button class="btn btn-secondary btn-sm" onclick="sendSimText()">Send</button>
+        </div>
+      </div>
+    </section>
+
     <!-- Main Grid -->
     <main class="dashboard-grid">
       <!-- Left Column: Actions & Controls -->
