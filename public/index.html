@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aura | AI Voice Caller Command Center</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="brand">
+        <div class="logo-icon">🎙️</div>
+        <div>
+          <h1>Aura Voice AI</h1>
+          <p class="subtitle">Full-Duplex AI Voice Agent for Inbound & Outbound Telephony</p>
+        </div>
+      </div>
+      <div class="system-status-badges" id="statusBadges">
+        <div class="badge badge-loading">Checking system status...</div>
+      </div>
+    </header>
+
+    <!-- Main Grid -->
+    <main class="dashboard-grid">
+      <!-- Left Column: Actions & Controls -->
+      <section class="card dialer-card">
+        <div class="card-header">
+          <h2>📞 Place Outbound Call</h2>
+          <span class="pill pill-primary">Realtime</span>
+        </div>
+        <p class="card-description">Trigger an instant AI-powered phone call to any carrier number globally.</p>
+
+        <form id="outboundForm" class="dialer-form">
+          <div class="form-group">
+            <label for="phoneNumber">Recipient Phone Number (with Country Code):</label>
+            <input 
+              type="tel" 
+              id="phoneNumber" 
+              placeholder="+1234567890 or +919876543210" 
+              required 
+            />
+            <span class="field-hint">Always include country prefix (e.g. +1 for US/Canada, +44 for UK, +91 for India).</span>
+          </div>
+
+          <div class="form-group">
+            <label for="personaPreset">Agent Persona / Mission:</label>
+            <select id="personaPreset">
+              <option value="receptionist">Customer Care & Receptionist</option>
+              <option value="booking">Appointment Booking Specialist</option>
+              <option value="sales">Sales & Lead Qualification</option>
+              <option value="custom">Custom Instructions</option>
+            </select>
+          </div>
+
+          <div class="form-group" id="customPromptGroup" style="display: none;">
+            <label for="customPrompt">Custom Instructions for this call:</label>
+            <textarea id="customPrompt" rows="3" placeholder="Specify unique instructions or script for the agent..."></textarea>
+          </div>
+
+          <button type="submit" id="callBtn" class="btn btn-primary btn-block">
+            <span class="btn-icon">⚡</span> Call Now
+          </button>
+        </form>
+
+        <div id="callFeedback" class="feedback-banner" style="display: none;"></div>
+
+        <hr class="divider" />
+
+        <!-- Webhook Info Box -->
+        <div class="webhook-info-box">
+          <div class="webhook-header">
+            <span class="icon">🔗</span>
+            <strong>Inbound Calling Webhook</strong>
+          </div>
+          <p class="webhook-desc">Configure this in your Twilio Console for incoming phone numbers:</p>
+          <div class="code-copy-box">
+            <code id="inboundUrlDisplay">Loading URL...</code>
+            <button class="btn-copy" onclick="copyWebhook()">Copy</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Right Column: Stats & Prompt Config -->
+      <section class="card config-card">
+        <div class="card-header">
+          <h2>🧠 Agent Persona & Instructions</h2>
+          <span class="pill pill-success">Live Editable</span>
+        </div>
+        <p class="card-description">Modify how the AI behaves during live calls. Changes take effect on the next call.</p>
+
+        <form id="promptForm">
+          <div class="form-group">
+            <textarea id="systemPromptInput" rows="7" class="code-font"></textarea>
+          </div>
+          <div class="action-row">
+            <button type="button" class="btn btn-secondary" onclick="loadDefaultPrompt()">Reset Default</button>
+            <button type="submit" class="btn btn-success">Save Instructions</button>
+          </div>
+        </form>
+
+        <hr class="divider" />
+
+        <!-- Quick Stats -->
+        <div class="stats-row">
+          <div class="stat-item">
+            <div class="stat-number" id="totalCallsCount">0</div>
+            <div class="stat-label">Total Calls</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-number" id="appointmentsCount">0</div>
+            <div class="stat-label">Bookings Made</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-number" id="contactsCount">0</div>
+            <div class="stat-label">CRM Contacts</div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Bottom Section: Call Logs & Appointments Tabs -->
+    <section class="card logs-card">
+      <div class="tabs-header">
+        <div class="tabs">
+          <button class="tab-btn active" onclick="switchTab('calls')">📞 Call History & Transcripts</button>
+          <button class="tab-btn" onclick="switchTab('appointments')">📅 Booked Appointments</button>
+        </div>
+        <button class="btn btn-sm btn-secondary" onclick="refreshData()">🔄 Refresh</button>
+      </div>
+
+      <!-- Tab 1: Calls Table -->
+      <div id="callsTab" class="tab-content active">
+        <div class="table-container">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Direction</th>
+                <th>Caller / Contact</th>
+                <th>Status</th>
+                <th>Duration</th>
+                <th>Date & Time</th>
+                <th>Sentiment</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="callsTableBody">
+              <tr>
+                <td colspan="7" class="empty-state">No calls recorded yet. Place an outbound call or dial inbound to test!</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Tab 2: Appointments Table -->
+      <div id="appointmentsTab" class="tab-content">
+        <div class="table-container">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Customer Name</th>
+                <th>Phone Number</th>
+                <th>Service Requested</th>
+                <th>Date & Time</th>
+                <th>Notes</th>
+                <th>Booked At</th>
+              </tr>
+            </thead>
+            <tbody id="appointmentsTableBody">
+              <tr>
+                <td colspan="6" class="empty-state">No appointments booked yet. The AI can schedule them automatically during calls.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- Modal: Call Details & Transcript -->
+  <div id="transcriptModal" class="modal-overlay" style="display: none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Call Details & Full Transcript</h3>
+        <button class="modal-close-btn" onclick="closeModal()">&times;</button>
+      </div>
+      <div class="modal-body" id="modalBody">
+        <div class="loader">Loading call details...</div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

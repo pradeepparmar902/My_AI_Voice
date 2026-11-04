@@ -1,0 +1,29 @@
+{
+  "name": "ai-voice-caller",
+  "version": "1.0.0",
+  "description": "Full-duplex AI Voice Agent for Inbound & Outbound Calling with Twilio & OpenAI Realtime",
+  "type": "module",
+  "main": "dist/server.js",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@fastify/cors": "^9.0.1",
+    "@fastify/formbody": "^7.4.0",
+    "@fastify/static": "^7.0.4",
+    "@fastify/websocket": "^10.0.1",
+    "dotenv": "^16.4.5",
+    "fastify": "^4.28.1",
+    "openai": "^4.56.0",
+    "twilio": "^5.2.2",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.5.0",
+    "@types/ws": "^8.5.12",
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.4"
+  }
+}
