@@ -174,6 +174,10 @@
             <div class="stat-label">Bookings Made</div>
           </div>
           <div class="stat-item">
+            <div class="stat-number" id="knowledgeCount">0</div>
+            <div class="stat-label">Knowledge Docs</div>
+          </div>
+          <div class="stat-item">
             <div class="stat-number" id="contactsCount">0</div>
             <div class="stat-label">CRM Contacts</div>
           </div>
@@ -187,6 +191,7 @@
         <div class="tabs">
           <button class="tab-btn active" onclick="switchTab('calls')">📞 Call History & Transcripts</button>
           <button class="tab-btn" onclick="switchTab('appointments')">📅 Booked Appointments</button>
+          <button class="tab-btn" onclick="switchTab('knowledge')">📚 Knowledge Base (<span id="kbTabCount">0</span>)</button>
         </div>
         <button class="btn btn-sm btn-secondary" onclick="refreshData()">🔄 Refresh</button>
       </div>
@@ -235,6 +240,57 @@
               </tr>
             </tbody>
           </table>
+        </div>
+      </div>
+
+      <!-- Tab 3: Knowledge Base Management -->
+      <div id="knowledgeTab" class="tab-content">
+        <div class="kb-management-grid">
+          <!-- Upload & Add Form -->
+          <div class="kb-form-panel">
+            <h3 style="font-size: 15px; margin-bottom: 8px;">Upload or Add Knowledge</h3>
+            <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 14px;">Upload company documents, FAQs, price lists, or policies so the AI can accurately answer caller questions.</p>
+
+            <!-- File Upload Box -->
+            <div class="file-upload-box" onclick="document.getElementById('kbFileInput').click()">
+              <input type="file" id="kbFileInput" accept=".txt,.md,.json,.csv" style="display: none;" onchange="handleFileUpload(event)" />
+              <div class="upload-icon">📁</div>
+              <div class="upload-text"><strong>Click to upload document</strong> (.txt, .md, .json, .csv)</div>
+              <div class="upload-subtext">Max 10MB</div>
+            </div>
+
+            <div style="text-align: center; margin: 12px 0; color: var(--text-muted); font-size: 12px;">— OR PASTE CUSTOM TEXT / FAQ —</div>
+
+            <form id="kbAddForm">
+              <div class="form-group">
+                <label for="kbTitle">Document / Topic Title:</label>
+                <input type="text" id="kbTitle" placeholder="e.g. Clinic Hours, Pricing & Fees, Return Policy" required />
+              </div>
+              <div class="form-group">
+                <label for="kbCategory">Category:</label>
+                <select id="kbCategory">
+                  <option value="FAQ">FAQ & Answers</option>
+                  <option value="Pricing">Pricing & Services</option>
+                  <option value="Operations">Hours & Location</option>
+                  <option value="Policy">Policies & Refunds</option>
+                  <option value="General">General Information</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="kbContent">Knowledge Content:</label>
+                <textarea id="kbContent" rows="5" placeholder="Enter detailed facts, bullet points, or exact answers..." required></textarea>
+              </div>
+              <button type="submit" class="btn btn-primary btn-block">➕ Add to Knowledge Base</button>
+            </form>
+          </div>
+
+          <!-- Active Knowledge Documents List -->
+          <div class="kb-list-panel">
+            <h3 style="font-size: 15px; margin-bottom: 8px;">Active Knowledge Documents</h3>
+            <div id="kbListContainer" class="kb-articles-list">
+              <div class="empty-state">No knowledge documents uploaded yet. Upload a file or add an entry on the left to train the AI!</div>
+            </div>
+          </div>
         </div>
       </div>
     </section>

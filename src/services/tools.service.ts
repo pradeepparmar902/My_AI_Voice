@@ -1,8 +1,24 @@
 import { dbService } from '../db/database.js';
 import { twilioService } from './twilio.service.js';
+import { knowledgeService } from './knowledge.service.js';
 
 // OpenAI Realtime Tool Definitions (Function schemas)
 export const voiceTools = [
+  {
+    type: 'function',
+    name: 'query_knowledge_base',
+    description: 'Look up company facts, business hours, services, pricing, policies, and FAQs from the verified knowledge base.',
+    parameters: {
+      type: 'object',
+      properties: {
+        query: {
+          type: 'string',
+          description: 'The search query or topic to look up (e.g., "pricing", "opening hours", "cancellation policy").'
+        }
+      },
+      required: ['query']
+    }
+  },
   {
     type: 'function',
     name: 'book_appointment',
@@ -134,6 +150,17 @@ export async function executeTool(name: string, args: any, context: { callSid: s
         };
       }
       return { found: false, message: 'New customer with no prior records.' };
+    }
+
+    case 'query_knowledge_base': {
+      const matches = knowledgeService.searchKnowledge(args.query || '');
+      if (matches.length > 0) {
+        return {
+          found: true,
+          results: matches.map((m) => ({ title: m.title, content: m.content }))
+        };
+      }
+      return { found: false, message: 'No specific entry found in knowledge base.' };
     }
 
     case 'send_sms_confirmation': {

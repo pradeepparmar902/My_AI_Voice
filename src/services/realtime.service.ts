@@ -3,6 +3,7 @@ import { config } from '../config.js';
 import { voiceTools, executeTool } from './tools.service.js';
 import { dbService } from '../db/database.js';
 import { summaryService } from './summary.service.js';
+import { knowledgeService } from './knowledge.service.js';
 
 interface StreamSession {
   streamSid: string;
@@ -123,11 +124,13 @@ export class RealtimeVoiceSession {
       customerContext = ` The caller's name is ${contact.name}. Relevant notes: ${contact.notes || 'None'}.`;
     }
 
+    const knowledgeContext = knowledgeService.getFormattedKnowledgeContext();
+
     const sessionUpdate = {
       type: 'session.update',
       session: {
         modalities: ['audio', 'text'],
-        instructions: `${config.openai.systemPrompt}${customerContext}\nYou are speaking to phone number: ${this.session.callerPhone}.`,
+        instructions: `${config.openai.systemPrompt}${customerContext}${knowledgeContext}\nYou are speaking to phone number: ${this.session.callerPhone}.`,
         voice: config.openai.voice,
         input_audio_format: 'g711_ulaw',
         output_audio_format: 'g711_ulaw',

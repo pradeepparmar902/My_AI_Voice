@@ -34,10 +34,19 @@ export interface ContactRecord {
   last_contacted: string;
 }
 
+export interface KnowledgeRecord {
+  id: string;
+  title: string;
+  content: string;
+  category?: string;
+  created_at: string;
+}
+
 interface DatabaseSchema {
   calls: CallRecord[];
   appointments: AppointmentRecord[];
   contacts: ContactRecord[];
+  knowledge: KnowledgeRecord[];
 }
 
 class DatabaseService {
@@ -45,7 +54,8 @@ class DatabaseService {
   private data: DatabaseSchema = {
     calls: [],
     appointments: [],
-    contacts: []
+    contacts: [],
+    knowledge: []
   };
 
   constructor() {
@@ -63,12 +73,15 @@ class DatabaseService {
       if (fs.existsSync(this.filePath)) {
         const content = fs.readFileSync(this.filePath, 'utf-8');
         this.data = JSON.parse(content);
+        if (!Array.isArray(this.data.knowledge)) {
+          this.data.knowledge = [];
+        }
       } else {
         this.save();
       }
     } catch (err) {
       console.warn('[Database] Failed to read database.json, initializing empty state:', err);
-      this.data = { calls: [], appointments: [], contacts: [] };
+      this.data = { calls: [], appointments: [], contacts: [], knowledge: [] };
     }
   }
 
@@ -170,6 +183,36 @@ class DatabaseService {
 
   public getAllContacts(): ContactRecord[] {
     return [...this.data.contacts];
+  }
+
+  // --- Knowledge Base ---
+  public addKnowledge(item: Omit<KnowledgeRecord, 'id' | 'created_at'>): KnowledgeRecord {
+    const newDoc: KnowledgeRecord = {
+      ...item,
+      id: `doc_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      created_at: new Date().toISOString()
+    };
+    this.data.knowledge.unshift(newDoc);
+    this.save();
+    return newDoc;
+  }
+
+  public getAllKnowledge(): KnowledgeRecord[] {
+    return [...this.data.knowledge];
+  }
+
+  public getKnowledgeById(id: string): KnowledgeRecord | undefined {
+    return this.data.knowledge.find((k) => k.id === id);
+  }
+
+  public deleteKnowledge(id: string): boolean {
+    const initialLen = this.data.knowledge.length;
+    this.data.knowledge = this.data.knowledge.filter((k) => k.id !== id);
+    if (this.data.knowledge.length !== initialLen) {
+      this.save();
+      return true;
+    }
+    return false;
   }
 }
 

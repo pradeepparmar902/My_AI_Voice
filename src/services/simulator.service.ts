@@ -1,5 +1,6 @@
 import { dbService } from '../db/database.js';
 import { executeTool } from './tools.service.js';
+import { knowledgeService } from './knowledge.service.js';
 
 interface SimulatorMessage {
   role: 'user' | 'assistant' | 'system';
@@ -93,7 +94,32 @@ export class LocalSimulatorService {
       };
     }
 
-    // 5. Greeting intents
+    // 5. Query Knowledge Base for Company Information, FAQs, Pricing, Hours, Policies
+    const matchedDocs = knowledgeService.searchKnowledge(userText);
+    if (matchedDocs.length > 0) {
+      const doc = matchedDocs[0];
+      // Pick key content or concise snippet
+      const lines = doc.content.split('\n').filter((l) => l.trim().length > 0);
+      let matchedSentence = lines[0];
+
+      // Try finding the exact line containing query terms
+      const queryWords = lower.split(/\s+/).filter((w) => w.length > 3);
+      for (const line of lines) {
+        const lineLower = line.toLowerCase();
+        if (queryWords.some((w) => lineLower.includes(w))) {
+          matchedSentence = line;
+          break;
+        }
+      }
+
+      return {
+        replyText: `According to our ${doc.title}: ${matchedSentence}. Would you like any further details or help scheduling an appointment?`,
+        toolExecuted: 'query_knowledge_base',
+        toolResult: { document: doc.title, snippet: matchedSentence }
+      };
+    }
+
+    // 6. Greeting intents
     if (lower.includes('hello') || lower.includes('hi') || lower.includes('hey') || lower.length === 0) {
       return {
         replyText: "Hello! This is Aura, your AI voice assistant. I can help you schedule appointments, look up your account, or answer your questions. What can I do for you today?"

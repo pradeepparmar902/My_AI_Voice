@@ -3,6 +3,7 @@ import fastifyWebsocket from '@fastify/websocket';
 import fastifyCors from '@fastify/cors';
 import fastifyFormbody from '@fastify/formbody';
 import fastifyStatic from '@fastify/static';
+import fastifyMultipart from '@fastify/multipart';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -20,6 +21,7 @@ const app = fastify({ logger: true });
 // Register Plugins
 await app.register(fastifyCors, { origin: true });
 await app.register(fastifyFormbody);
+await app.register(fastifyMultipart, { limits: { fileSize: 10 * 1024 * 1024 } }); // 10MB limit
 await app.register(fastifyWebsocket);
 
 // Serve static dashboard files
@@ -228,6 +230,58 @@ app.get('/api/appointments', async () => {
 // --- REST API: Contacts / CRM ---
 app.get('/api/contacts', async () => {
   return dbService.getAllContacts();
+});
+
+// --- REST API: Knowledge Base ---
+app.get('/api/knowledge', async () => {
+  return dbService.getAllKnowledge();
+});
+
+app.post('/api/knowledge', async (req, reply) => {
+  const { title, content, category } = req.body as { title: string; content: string; category?: string };
+  if (!title || !content) {
+    return reply.status(400).send({ error: 'Title and content are required.' });
+  }
+
+  const created = dbService.addKnowledge({
+    title,
+    content,
+    category: category || 'General'
+  });
+
+  return reply.send({ success: true, item: created });
+});
+
+// Upload knowledge document file (.txt, .md, .json, .csv)
+app.post('/api/knowledge/upload', async (req, reply) => {
+  const file = await req.file();
+  if (!file) {
+    return reply.status(400).send({ error: 'No file uploaded.' });
+  }
+
+  const filename = file.filename;
+  const buffer = await file.toBuffer();
+  const content = buffer.toString('utf-8');
+
+  // Strip extension for title
+  const title = filename.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
+
+  const created = dbService.addKnowledge({
+    title,
+    content,
+    category: 'Uploaded File'
+  });
+
+  return reply.send({ success: true, item: created });
+});
+
+app.delete('/api/knowledge/:id', async (req, reply) => {
+  const { id } = req.params as { id: string };
+  const deleted = dbService.deleteKnowledge(id);
+  if (!deleted) {
+    return reply.status(404).send({ error: 'Article not found.' });
+  }
+  return reply.send({ success: true });
 });
 
 // --- REST API: System Status & Config ---

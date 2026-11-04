@@ -43,6 +43,7 @@ document.addEventListener('DOMContentLoaded', () => {
   fetchCalls();
   fetchAppointments();
   fetchContacts();
+  fetchKnowledge();
   initFormListeners();
   initSpeechRecognition();
 
@@ -50,6 +51,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setInterval(() => {
     fetchCalls();
     fetchAppointments();
+    fetchKnowledge();
   }, 6000);
 });
 
@@ -421,6 +423,80 @@ async function fetchContacts() {
   }
 }
 
+// Fetch Knowledge Base
+async function fetchKnowledge() {
+  try {
+    const res = await fetch('/api/knowledge');
+    const docs = await res.json();
+
+    document.getElementById('knowledgeCount').textContent = docs.length;
+    document.getElementById('kbTabCount').textContent = docs.length;
+
+    const container = document.getElementById('kbListContainer');
+    if (!docs.length) {
+      container.innerHTML = `<div class="empty-state">No knowledge documents uploaded yet. Upload a file or add an entry on the left to train the AI!</div>`;
+      return;
+    }
+
+    container.innerHTML = docs.map(doc => `
+      <div class="kb-article-card">
+        <div class="kb-article-header">
+          <span class="kb-article-title">${escapeHtml(doc.title)}</span>
+          <span class="pill pill-primary">${escapeHtml(doc.category || 'General')}</span>
+        </div>
+        <div class="kb-article-preview">${escapeHtml(doc.content)}</div>
+        <div class="kb-article-footer">
+          <span>Added: ${new Date(doc.created_at).toLocaleDateString()}</span>
+          <button class="btn-del-kb" onclick="deleteKnowledge('${doc.id}')">🗑️ Remove</button>
+        </div>
+      </div>
+    `).join('');
+  } catch (err) {
+    console.error('Error fetching knowledge:', err);
+  }
+}
+
+// Upload file handler
+async function handleFileUpload(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const formData = new FormData();
+  formData.append('file', file);
+
+  try {
+    const res = await fetch('/api/knowledge/upload', {
+      method: 'POST',
+      body: formData
+    });
+
+    if (!res.ok) {
+      throw new Error('Upload failed');
+    }
+
+    alert(`Successfully uploaded "${file.name}" to the AI knowledge base!`);
+    fetchKnowledge();
+  } catch (err) {
+    alert(`File upload failed: ${err.message}`);
+  } finally {
+    e.target.value = '';
+  }
+}
+
+// Delete Knowledge Item
+async function deleteKnowledge(id) {
+  if (!confirm('Are you sure you want to remove this knowledge document?')) return;
+
+  try {
+    const res = await fetch(`/api/knowledge/${id}`, { method: 'DELETE' });
+    if (res.ok) {
+      fetchKnowledge();
+    }
+  } catch (err) {
+    alert('Failed to delete document.');
+  }
+}
+
 // Event Listeners
 function initFormListeners() {
   const presetSelect = document.getElementById('personaPreset');
@@ -492,6 +568,34 @@ function initFormListeners() {
       alert('Failed to update prompt.');
     }
   });
+
+  // Knowledge Base manual add form
+  const kbForm = document.getElementById('kbAddForm');
+  if (kbForm) {
+    kbForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const title = document.getElementById('kbTitle').value.trim();
+      const category = document.getElementById('kbCategory').value;
+      const content = document.getElementById('kbContent').value.trim();
+
+      try {
+        const res = await fetch('/api/knowledge', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title, category, content })
+        });
+
+        if (!res.ok) throw new Error('Failed to add knowledge');
+
+        alert(`Knowledge article "${title}" added to AI!`);
+        document.getElementById('kbTitle').value = '';
+        document.getElementById('kbContent').value = '';
+        fetchKnowledge();
+      } catch (err) {
+        alert(err.message);
+      }
+    });
+  }
 }
 
 // Modal view call details
@@ -540,9 +644,12 @@ function switchTab(tab) {
   if (tab === 'calls') {
     document.querySelectorAll('.tab-btn')[0].classList.add('active');
     document.getElementById('callsTab').classList.add('active');
-  } else {
+  } else if (tab === 'appointments') {
     document.querySelectorAll('.tab-btn')[1].classList.add('active');
     document.getElementById('appointmentsTab').classList.add('active');
+  } else if (tab === 'knowledge') {
+    document.querySelectorAll('.tab-btn')[2].classList.add('active');
+    document.getElementById('knowledgeTab').classList.add('active');
   }
 }
 
@@ -554,6 +661,7 @@ function refreshData() {
   fetchCalls();
   fetchAppointments();
   fetchContacts();
+  fetchKnowledge();
 }
 
 function copyWebhook() {

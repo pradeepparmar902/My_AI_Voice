@@ -596,6 +596,129 @@ input:focus, select:focus, textarea:focus {
   color: var(--text-muted);
 }
 
+/* Knowledge Base Management */
+.kb-management-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+@media (max-width: 860px) {
+  .kb-management-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.kb-form-panel {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px;
+}
+
+.file-upload-box {
+  border: 2px dashed rgba(99, 102, 241, 0.4);
+  background: rgba(99, 102, 241, 0.05);
+  border-radius: 8px;
+  padding: 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.file-upload-box:hover {
+  border-color: #6366f1;
+  background: rgba(99, 102, 241, 0.1);
+}
+
+.upload-icon {
+  font-size: 28px;
+  margin-bottom: 6px;
+}
+
+.upload-text {
+  font-size: 13px;
+  color: var(--text-main);
+}
+
+.upload-subtext {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.kb-list-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.kb-articles-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 480px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.kb-article-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  position: relative;
+}
+
+.kb-article-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.kb-article-title {
+  font-weight: 600;
+  font-size: 14px;
+  color: #818cf8;
+}
+
+.kb-article-preview {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.5;
+  white-space: pre-line;
+  max-height: 90px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.kb-article-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 4px;
+  border-top: 1px solid rgba(55, 65, 81, 0.4);
+  padding-top: 6px;
+}
+
+.btn-del-kb {
+  background: none;
+  border: none;
+  color: #ef4444;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.btn-del-kb:hover {
+  background: rgba(239, 68, 68, 0.15);
+}
+
 /* Modal */
 .modal-overlay {
   position: fixed;
