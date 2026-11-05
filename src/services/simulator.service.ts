@@ -71,6 +71,24 @@ export class LocalSimulatorService {
       return { replyText: reply, toolExecuted: 'identify_caller', toolResult: { name: extractedName }, lang };
     }
 
+    // 2. Greetings & Well-being ("hi how are you", "hello", "kem cho", "kaise ho")
+    if (lower.includes('how are you') || lower.includes('how r u') || lower.includes('kem cho') || lower.includes('kaise ho') || lower.includes('kase aahat')) {
+      let reply = `I am doing great, ${salutationEn}! Thank you so much for asking. How are you doing today, and how can I help you with your dental care?`;
+      if (lang === 'gu') reply = `હું એકદમ મજામાં છું, ${salutationGu}! પૂછવા બદલ ખૂબ ખૂબ આભાર. આપ કેમ છો અને આજે હું તમારી દાંતની સારવારમાં શું સેવા કરું?`;
+      else if (lang === 'hi') reply = `मैं बिल्कुल ठीक हूँ, ${salutationHi}! पूछने के लिए बहुत-बहुत धन्यवाद। आप कैसे हैं और आज मैं आपके लिए क्या कर सकती हूँ?`;
+      else if (lang === 'mr') reply = `मी मजेत आहे, ${salutationEn}! विचारल्याबद्दल धन्यवाद. मी आपली काय मदत करू शकते?`;
+
+      return { replyText: reply, toolExecuted: 'greeting', lang };
+    }
+
+    if (lower === 'hi' || lower === 'hello' || lower === 'hey' || lower === 'hi hi' || lower.startsWith('hi ') || lower.startsWith('hello ') || lower.startsWith('hey ')) {
+      let reply = `Hello ${salutationEn}! It's great to hear from you. Welcome to Aura Smiles Dental Clinic. What can I help you with today?`;
+      if (lang === 'gu') reply = `નમસ્તે ${salutationGu}! ઔરા સ્માઈલ્સ ડેન્ટલ ક્લિનિકમાં આપનું હાર્દિક સ્વાગત છે. હું તમારી શું સેવા કરી શકું?`;
+      else if (lang === 'hi') reply = `नमस्ते ${salutationHi}! ऑरा स्माइल्स डेंटल में आपका स्वागत है। बताइए, आज मैं आपकी क्या सहायता करूँ?`;
+
+      return { replyText: reply, toolExecuted: 'greeting', lang };
+    }
+
     // 2. Yellow Teeth / Cosmetic Whitening inquiry ("my teeth are yellow", "teeth whitening", "truth or yellow", "yellow")
     if (lower.includes('yellow') || lower.includes('whiten') || lower.includes('stain') || lower.includes('pila') || lower.includes('peela') || lower.includes('પીળા') || lower.includes('પીળાશ')) {
       let reply = `I completely understand, ${salutationEn}! Yellowing or staining is very common from daily tea, coffee, or food. At Aura Smiles, we have an advanced In-Office Laser Whitening session (₹7,500) that safely lightens teeth by 6 to 8 shades in just one hour, as well as take-home kits for ₹4,500. We can also schedule a ₹500 consultation to check your enamel. Would you like to book a slot?`;

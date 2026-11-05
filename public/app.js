@@ -172,6 +172,11 @@ function speakAloud(text, callback, lang = 'en') {
   if (lang === 'gu') {
     utterance.lang = 'gu-IN';
     matchedVoice = voices.find(v => v.lang.startsWith('gu') || v.name.includes('Gujarati'));
+    if (!matchedVoice) {
+      // Fallback to Indian voice (Hindi or Indian English) so it NEVER uses a western accent!
+      matchedVoice = voices.find(v => (v.lang === 'hi-IN' || v.lang === 'en-IN') && (v.name.includes('Swara') || v.name.includes('Neerja') || v.name.includes('Heera') || v.name.includes('Google हिन्दी')));
+      if (!matchedVoice) matchedVoice = voices.find(v => v.lang === 'en-IN');
+    }
   } else if (lang === 'hi') {
     utterance.lang = 'hi-IN';
     if (isIndianMale) {
@@ -179,12 +184,14 @@ function speakAloud(text, callback, lang = 'en') {
     } else {
       matchedVoice = voices.find(v => (v.lang.startsWith('hi') || v.lang === 'en-IN') && (v.name.includes('Swara') || v.name.includes('Neerja') || v.name.includes('Female')));
     }
+    if (!matchedVoice) matchedVoice = voices.find(v => v.lang.startsWith('hi') || v.lang === 'en-IN');
   } else if (lang === 'mr') {
     utterance.lang = 'mr-IN';
     matchedVoice = voices.find(v => v.lang.startsWith('mr') || v.name.includes('Marathi'));
+    if (!matchedVoice) matchedVoice = voices.find(v => v.lang === 'hi-IN' || v.lang === 'en-IN');
   }
 
-  // Fallback to English/Indic voice if specific language voice not found
+  // Fallback to Indian / Western voice based on user preference
   if (!matchedVoice) {
     if (isIndianFemale) {
       utterance.lang = 'en-IN';
@@ -242,15 +249,25 @@ function startSimulatedCall(direction) {
   // Start timer
   simState.timerInterval = setInterval(updateSimTimer, 1000);
 
-  // Initial greeting
-  const greeting = direction === 'inbound'
-    ? "Hello! Thanks for calling. My name is Aura, your AI voice assistant. How can I help you today?"
-    : "Hi there! This is Aura following up regarding your inquiry. How are you doing today?";
+  // Initial greeting tailored to selected language & persona
+  let greeting = "Hello! Thanks for calling Aura Smiles Dental Clinic. My name is Ananya. How can I assist you with your dental care today?";
+  let langTag = 'en';
+
+  if (simState.selectedLang === 'gu-IN' || simState.selectedLang === 'gu') {
+    greeting = "નમસ્તે! ઔરા સ્માઈલ્સ ડેન્ટલ ક્લિનિકમાં આપનું હાર્દિક સ્વાગત છે. હું તમારી દાંતની સારવારમાં શું મદદ કરી શકું?";
+    langTag = 'gu';
+  } else if (simState.selectedLang === 'hi-IN' || simState.selectedLang === 'hi') {
+    greeting = "नमस्ते! ऑरा स्माइल्स डेंटल क्लिनिक में आपका स्वागत है। बताइए, मैं आपकी क्या सहायता करूँ?";
+    langTag = 'hi';
+  } else if (simState.selectedLang === 'mr-IN' || simState.selectedLang === 'mr') {
+    greeting = "नमस्कार! ऑरा स्माइल्स डेंटल क्लिनिकमध्ये आपले स्वागत आहे. सांगा, मी कशी मदत करू?";
+    langTag = 'mr';
+  }
 
   addSimMessage('assistant', greeting);
   speakAloud(greeting, () => {
     startListening();
-  });
+  }, langTag);
 }
 
 function updateSimTimer() {
