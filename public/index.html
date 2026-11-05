@@ -27,12 +27,41 @@
 
     <!-- Live Voice Simulator Banner (Zero Account Required) -->
     <section class="card simulator-card">
-      <div class="card-header">
+      <div class="card-header simulator-header-flex">
         <div>
           <h2>🎙️ In-Browser Voice Caller Simulator <span class="pill pill-success">100% Free & Local</span></h2>
           <p class="card-description" style="margin-bottom: 0;">Test the complete voice agent right now using your computer microphone and speakers — <strong>no Twilio or OpenAI account needed</strong>!</p>
         </div>
-        <div id="simCallControls">
+      </div>
+
+      <!-- Controls visible BEFORE starting the call -->
+      <div id="simCallControls" class="sim-call-setup-bar">
+        <div class="setup-group">
+          <div class="setup-item">
+            <span class="setup-step-badge">Step 1</span>
+            <label for="simVoiceAccent">Voice Persona:</label>
+            <select id="simVoiceAccent" class="lang-select" onchange="changeVoiceAccent(this.value)">
+              <option value="indian-female" selected>👩 Indian Female (Ananya / Neerja)</option>
+              <option value="indian-male">👨 Indian Male (Rohan / Madhur)</option>
+              <option value="western-female">👱‍♀️ Western Female (Aura / Samantha)</option>
+              <option value="western-male">👱‍♂️ Western Male (David)</option>
+            </select>
+          </div>
+
+          <div class="setup-item">
+            <span class="setup-step-badge">Step 2</span>
+            <label for="simLanguage">Speaking Language:</label>
+            <select id="simLanguage" class="lang-select" onchange="changeSimLanguage(this.value)">
+              <option value="gu-IN" selected>🇬🇺 ગુજરાતી (Gujarati)</option>
+              <option value="hi-IN">🇮🇳 हिंदी (Hindi / Hinglish)</option>
+              <option value="mr-IN">🇮🇳 मराठी (Marathi)</option>
+              <option value="en-IN">🇮🇳 English (India)</option>
+              <option value="auto">🌐 Auto-Detect Language</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="setup-actions">
           <button class="btn btn-primary" id="startSimInboundBtn" onclick="startSimulatedCall('inbound')">
             <span>📲</span> Simulate Inbound Call
           </button>
@@ -53,18 +82,18 @@
             </div>
           </div>
           <div class="sim-header-actions">
-            <select id="simVoiceAccent" class="lang-select" onchange="changeVoiceAccent(this.value)" title="Voice Accent & Gender">
-              <option value="indian-female">👩 Indian Female (Swara / Neerja)</option>
-              <option value="indian-male">👨 Indian Male (Madhur / Prabhat)</option>
-              <option value="western-female">👩 Western Female (Aura / Samantha)</option>
-              <option value="western-male">👨 Western Male (David)</option>
+            <select id="simActiveVoice" class="lang-select select-compact" onchange="changeVoiceAccent(this.value); syncActiveSelectors();" title="Active Voice">
+              <option value="indian-female">👩 Indian Female</option>
+              <option value="indian-male">👨 Indian Male</option>
+              <option value="western-female">👱‍♀️ Western Female</option>
+              <option value="western-male">👱‍♂️ Western Male</option>
             </select>
-            <select id="simLanguage" class="lang-select" onchange="changeSimLanguage(this.value)">
-              <option value="auto">🌐 Auto-Detect Language</option>
-              <option value="gu-IN">ગુજરાતી (Gujarati)</option>
-              <option value="hi-IN">हिंदी (Hindi / Hinglish)</option>
-              <option value="mr-IN">मराठी (Marathi)</option>
-              <option value="en-IN">English (India)</option>
+            <select id="simActiveLang" class="lang-select select-compact" onchange="changeSimLanguage(this.value); syncActiveSelectors();" title="Active Language">
+              <option value="gu-IN">🇬🇺 ગુજરાતી</option>
+              <option value="hi-IN">🇮🇳 हिंदी</option>
+              <option value="mr-IN">🇮🇳 मराठी</option>
+              <option value="en-IN">🇮🇳 English (India)</option>
+              <option value="auto">🌐 Auto</option>
             </select>
             <button class="btn btn-danger btn-sm" id="endSimCallBtn" onclick="endSimulatedCall()">
               <span>🔴</span> Hang Up Call

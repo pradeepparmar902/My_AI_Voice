@@ -51,20 +51,22 @@ app.post('/twiml/incoming', async (req, reply) => {
   // Automatically update contacts
   dbService.upsertContact(fromNumber);
 
-  // Generate WebSocket media stream URL
-  const host = req.headers.host;
-  const protocol = req.headers['x-forwarded-proto'] === 'https' ? 'wss' : 'ws';
-  const streamUrl = `${protocol}://${host}/ws/media-stream`;
+  // Generate WebSocket media stream URL (Must strictly be wss:// for Twilio)
+  const base = config.publicUrl || `https://${req.headers.host}`;
+  const streamUrl = base.replace(/^https:\/\//i, 'wss://').replace(/^http:\/\//i, 'wss://') + '/ws/media-stream';
+  console.log(`[Twilio Webhook] Inbound call streamUrl: ${streamUrl}`);
 
   // Respond with TwiML
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
+  <Say voice="Polly.Aditi">Welcome to Aura Smiles Dental Clinic. Connecting your call.</Say>
   <Connect>
     <Stream url="${streamUrl}">
       <Parameter name="callerPhone" value="${fromNumber}" />
       <Parameter name="direction" value="inbound" />
     </Stream>
   </Connect>
+  <Pause length="40" />
 </Response>`;
 
   reply.header('Content-Type', 'text/xml').send(twiml);
@@ -78,18 +80,20 @@ app.post('/twiml/outbound', async (req, reply) => {
 
   console.log(`[Twilio Webhook] Outbound call connected to ${toNumber} (CallSid: ${callSid})`);
 
-  const host = req.headers.host;
-  const protocol = req.headers['x-forwarded-proto'] === 'https' ? 'wss' : 'ws';
-  const streamUrl = `${protocol}://${host}/ws/media-stream`;
+  const base = config.publicUrl || `https://${req.headers.host}`;
+  const streamUrl = base.replace(/^https:\/\//i, 'wss://').replace(/^http:\/\//i, 'wss://') + '/ws/media-stream';
+  console.log(`[Twilio Webhook] Outbound call streamUrl: ${streamUrl}`);
 
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
+  <Say voice="Polly.Aditi">Connecting your call to Aura Dental Clinic.</Say>
   <Connect>
     <Stream url="${streamUrl}">
       <Parameter name="callerPhone" value="${toNumber}" />
       <Parameter name="direction" value="outbound" />
     </Stream>
   </Connect>
+  <Pause length="40" />
 </Response>`;
 
   reply.header('Content-Type', 'text/xml').send(twiml);

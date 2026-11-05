@@ -102,6 +102,69 @@ body {
   background: linear-gradient(90deg, #10b981, #6366f1);
 }
 
+.sim-call-setup-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  background: rgba(15, 23, 42, 0.75);
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  border-radius: var(--radius);
+  padding: 14px 18px;
+  margin-top: 14px;
+}
+
+.setup-group {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 18px;
+}
+
+.setup-step-badge {
+  background: rgba(99, 102, 241, 0.25);
+  color: #a5b4fc;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  padding: 3px 7px;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+
+.setup-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.setup-item label {
+  font-size: 13px;
+  color: #e2e8f0;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.setup-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.select-compact {
+  padding: 6px 10px;
+  font-size: 12px;
+  max-width: 170px;
+}
+
+@media (max-width: 800px) {
+  .setup-actions {
+    margin-left: 0;
+    width: 100%;
+  }
+}
+
 .sim-active-panel {
   margin-top: 18px;
   background: var(--bg-surface);

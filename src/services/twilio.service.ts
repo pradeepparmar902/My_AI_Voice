@@ -46,10 +46,7 @@ class TwilioService {
     const call = await this.client.calls.create({
       to,
       from: config.twilio.phoneNumber,
-      url: webhookUrl, // URL returning the TwiML Stream
-      statusCallback: `${config.publicUrl}/api/calls/status`,
-      statusCallbackEvent: ['initiated', 'ringing', 'answered', 'completed'],
-      statusCallbackMethod: 'POST'
+      url: webhookUrl
     });
 
     return call;

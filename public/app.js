@@ -35,7 +35,7 @@ let simState = {
   transcript: [],
   recognition: null,
   isListening: false,
-  selectedLang: 'auto',
+  selectedLang: 'gu-IN',
   voiceType: 'indian-female',
   speechAccumulator: '',
   silenceTimer: null
@@ -43,6 +43,11 @@ let simState = {
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
+  const initialVoice = document.getElementById('simVoiceAccent');
+  const initialLang = document.getElementById('simLanguage');
+  if (initialVoice) simState.voiceType = initialVoice.value;
+  if (initialLang) simState.selectedLang = initialLang.value;
+
   fetchSystemStatus();
   fetchCalls();
   fetchAppointments();
@@ -70,7 +75,7 @@ function initSpeechRecognition() {
   simState.recognition = new SpeechRecognition();
   simState.recognition.continuous = true;
   simState.recognition.interimResults = true;
-  simState.recognition.lang = 'en-IN';
+  simState.recognition.lang = simState.selectedLang || 'gu-IN';
 
   simState.recognition.onresult = (event) => {
     if (!simState.active) return;
@@ -93,7 +98,7 @@ function initSpeechRecognition() {
 
       updateSimStatus(`Listening: "${simState.speechAccumulator}"...`, false);
 
-      // Human thinking pause timer (1500ms): Wait until speaker genuinely finishes their thought
+      // Conversational thinking pause timer (1800ms): Wait until speaker completes their thought
       clearTimeout(simState.silenceTimer);
       simState.silenceTimer = setTimeout(() => {
         const fullSentence = simState.speechAccumulator.trim();
@@ -106,7 +111,7 @@ function initSpeechRecognition() {
           }
           handleUserSpeech(fullSentence);
         }
-      }, 1400);
+      }, 1800);
     } else if (interimChunk.trim()) {
       // User is actively speaking right now
       clearTimeout(simState.silenceTimer);
@@ -129,16 +134,50 @@ function initSpeechRecognition() {
   };
 }
 
+// Cache voices eagerly
+let cachedVoices = [];
+function loadBrowserVoices() {
+  if ('speechSynthesis' in window) {
+    cachedVoices = window.speechSynthesis.getVoices();
+  }
+}
+if ('speechSynthesis' in window) {
+  loadBrowserVoices();
+  window.speechSynthesis.onvoiceschanged = loadBrowserVoices;
+}
+
 function changeSimLanguage(lang) {
   simState.selectedLang = lang;
   if (simState.recognition) {
-    simState.recognition.lang = lang === 'auto' ? 'en-IN' : lang;
+    if (lang === 'gu-IN' || lang === 'gu') {
+      simState.recognition.lang = 'gu-IN';
+    } else if (lang === 'hi-IN' || lang === 'hi') {
+      simState.recognition.lang = 'hi-IN';
+    } else if (lang === 'mr-IN' || lang === 'mr') {
+      simState.recognition.lang = 'mr-IN';
+    } else {
+      simState.recognition.lang = 'en-IN';
+    }
   }
+  const activeLang = document.getElementById('simActiveLang');
+  const setupLang = document.getElementById('simLanguage');
+  if (activeLang && activeLang.value !== lang) activeLang.value = lang;
+  if (setupLang && setupLang.value !== lang) setupLang.value = lang;
 }
 
 function changeVoiceAccent(type) {
   simState.voiceType = type;
-  console.log('[Voice] Switched voice accent to:', type);
+  const activeVoice = document.getElementById('simActiveVoice');
+  const setupVoice = document.getElementById('simVoiceAccent');
+  if (activeVoice && activeVoice.value !== type) activeVoice.value = type;
+  if (setupVoice && setupVoice.value !== type) setupVoice.value = type;
+}
+
+function syncActiveSelectors() {
+  const activeVoice = document.getElementById('simActiveVoice');
+  const activeLang = document.getElementById('simActiveLang');
+  if (activeVoice) simState.voiceType = activeVoice.value;
+  if (activeLang) simState.selectedLang = activeLang.value;
 }
 
 function quickSend(text) {
@@ -150,8 +189,84 @@ function quickSend(text) {
   }, 400);
 }
 
-// Speak aloud using browser TTS with Indian Male/Female and Regional voice selection
+let currentSimAudio = null;
+
+// Play Cloud-Grade Indian Regional Voice (Gujarati / Hindi / Marathi / Indian English)
+function playCloudTTS(text, lang, onFinish, onFallback) {
+  let tl = 'gu';
+  if (lang === 'hi') tl = 'hi';
+  else if (lang === 'mr') tl = 'mr';
+  else if (lang === 'en' || lang === 'en-IN') tl = 'en-IN';
+
+  // Break text into sentences of <= 150 chars for seamless streaming
+  const sentences = text.match(/[^.!?।]+[.!?।]+|[^.!?।]+/g) || [text];
+  const chunks = [];
+  let currentChunk = '';
+  for (const s of sentences) {
+    if ((currentChunk + ' ' + s).trim().length > 150) {
+      if (currentChunk.trim()) chunks.push(currentChunk.trim());
+      currentChunk = s;
+    } else {
+      currentChunk += ' ' + s;
+    }
+  }
+  if (currentChunk.trim()) chunks.push(currentChunk.trim());
+
+  let chunkIdx = 0;
+  if (currentSimAudio) {
+    try { currentSimAudio.pause(); } catch (_) {}
+    currentSimAudio = null;
+  }
+
+  updateSimStatus('AI Speaking (Cloud Audio)...', true);
+
+  function playNextChunk() {
+    if (!simState.active) {
+      updateSimStatus('Call Ended', false);
+      return;
+    }
+    if (chunkIdx >= chunks.length) {
+      updateSimStatus('Listening for your voice...', false);
+      if (onFinish) onFinish();
+      return;
+    }
+
+    const chunk = chunks[chunkIdx++];
+    const url = `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=${tl}&q=${encodeURIComponent(chunk)}`;
+    const audio = new Audio(url);
+    currentSimAudio = audio;
+
+    audio.onended = playNextChunk;
+    audio.onerror = () => {
+      console.warn('Cloud audio stream blocked or offline, falling back to local synthesis');
+      if (onFallback) onFallback();
+      else if (onFinish) onFinish();
+    };
+
+    audio.play().catch(err => {
+      console.warn('Audio playback failed, falling back to local synthesis:', err);
+      if (onFallback) onFallback();
+      else if (onFinish) onFinish();
+    });
+  }
+
+  playNextChunk();
+}
+
+// Speak aloud using Cloud Audio for Indian regional languages, or fallback to browser TTS
 function speakAloud(text, callback, lang = 'en') {
+  // If speaking Gujarati, Hindi, Marathi, or Indian English, prioritize Cloud Neural Audio!
+  if (lang === 'gu' || lang === 'hi' || lang === 'mr' || simState.voiceType.startsWith('indian')) {
+    playCloudTTS(text, lang, callback, () => {
+      fallbackLocalTTS(text, callback, lang);
+    });
+    return;
+  }
+
+  fallbackLocalTTS(text, callback, lang);
+}
+
+function fallbackLocalTTS(text, callback, lang = 'en') {
   if (!('speechSynthesis' in window)) {
     if (callback) callback();
     return;
@@ -159,62 +274,33 @@ function speakAloud(text, callback, lang = 'en') {
 
   window.speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(text);
-  utterance.rate = 1.0;
-  utterance.pitch = simState.voiceType.includes('male') && !simState.voiceType.includes('female') ? 0.95 : 1.05;
-
-  const voices = window.speechSynthesis.getVoices();
-  let matchedVoice = null;
 
   const isIndianMale = simState.voiceType === 'indian-male';
   const isIndianFemale = simState.voiceType === 'indian-female';
   const isWesternMale = simState.voiceType === 'western-male';
 
+  utterance.pitch = (isIndianMale || isWesternMale) ? 0.90 : 1.06;
+  utterance.rate = 0.95;
+
+  const voices = (cachedVoices && cachedVoices.length) ? cachedVoices : window.speechSynthesis.getVoices();
+  let matchedVoice = null;
+
   if (lang === 'gu') {
     utterance.lang = 'gu-IN';
-    matchedVoice = voices.find(v => v.lang.startsWith('gu') || v.name.includes('Gujarati'));
-    if (!matchedVoice) {
-      // Fallback to Indian voice (Hindi or Indian English) so it NEVER uses a western accent!
-      matchedVoice = voices.find(v => (v.lang === 'hi-IN' || v.lang === 'en-IN') && (v.name.includes('Swara') || v.name.includes('Neerja') || v.name.includes('Heera') || v.name.includes('Google हिन्दी')));
-      if (!matchedVoice) matchedVoice = voices.find(v => v.lang === 'en-IN');
-    }
+    matchedVoice = voices.find(v => v.lang.startsWith('gu') || v.name.toLowerCase().includes('gujarati'));
   } else if (lang === 'hi') {
     utterance.lang = 'hi-IN';
-    if (isIndianMale) {
-      matchedVoice = voices.find(v => (v.lang.startsWith('hi') || v.lang === 'en-IN') && (v.name.includes('Madhur') || v.name.includes('Hemant') || v.name.includes('Male')));
-    } else {
-      matchedVoice = voices.find(v => (v.lang.startsWith('hi') || v.lang === 'en-IN') && (v.name.includes('Swara') || v.name.includes('Neerja') || v.name.includes('Female')));
-    }
-    if (!matchedVoice) matchedVoice = voices.find(v => v.lang.startsWith('hi') || v.lang === 'en-IN');
+    matchedVoice = voices.find(v => (v.lang.startsWith('hi') || v.lang.includes('IN')) && (v.name.includes('Swara') || v.name.includes('Neerja') || v.name.includes('Google हिन्दी')));
   } else if (lang === 'mr') {
     utterance.lang = 'mr-IN';
-    matchedVoice = voices.find(v => v.lang.startsWith('mr') || v.name.includes('Marathi'));
-    if (!matchedVoice) matchedVoice = voices.find(v => v.lang === 'hi-IN' || v.lang === 'en-IN');
-  }
-
-  // Fallback to Indian / Western voice based on user preference
-  if (!matchedVoice) {
-    if (isIndianFemale) {
-      utterance.lang = 'en-IN';
-      matchedVoice = voices.find(v => (v.lang === 'en-IN' || v.lang.startsWith('hi')) && (v.name.includes('Neerja') || v.name.includes('Swara') || v.name.includes('Heera') || v.name.includes('Female')));
-      if (!matchedVoice) matchedVoice = voices.find(v => v.lang === 'en-IN');
-    } else if (isIndianMale) {
-      utterance.lang = 'en-IN';
-      matchedVoice = voices.find(v => (v.lang === 'en-IN' || v.lang.startsWith('hi')) && (v.name.includes('Prabhat') || v.name.includes('Madhur') || v.name.includes('Ravi') || v.name.includes('Male')));
-      if (!matchedVoice) matchedVoice = voices.find(v => v.lang === 'en-IN');
-    } else if (isWesternMale) {
-      utterance.lang = 'en-US';
-      matchedVoice = voices.find(v => v.lang.startsWith('en') && (v.name.includes('David') || v.name.includes('George') || v.name.includes('Male')));
-    } else {
-      utterance.lang = 'en-US';
-      matchedVoice = voices.find(v => v.lang.startsWith('en') && (v.name.includes('Samantha') || v.name.includes('Zira') || v.name.includes('Natural')));
-    }
+    matchedVoice = voices.find(v => v.lang.startsWith('mr') || v.name.toLowerCase().includes('marathi'));
   }
 
   if (matchedVoice) {
     utterance.voice = matchedVoice;
   }
 
-  updateSimStatus('AI is Speaking...', true);
+  updateSimStatus('AI Speaking...', true);
 
   utterance.onend = () => {
     updateSimStatus('Listening for your voice...', false);
@@ -233,11 +319,24 @@ function speakAloud(text, callback, lang = 'en') {
 function startSimulatedCall(direction) {
   if (simState.active) return;
 
+  // Immediately read chosen voice and language from DOM setup selectors BEFORE starting!
+  const voiceSelect = document.getElementById('simVoiceAccent');
+  const langSelect = document.getElementById('simLanguage');
+  if (voiceSelect) simState.voiceType = voiceSelect.value;
+  if (langSelect) simState.selectedLang = langSelect.value;
+
+  // Sync to active header selectors
+  const activeVoice = document.getElementById('simActiveVoice');
+  const activeLang = document.getElementById('simActiveLang');
+  if (activeVoice) activeVoice.value = simState.voiceType;
+  if (activeLang) activeLang.value = simState.selectedLang;
+
   simState.active = true;
   simState.callSid = `sim_${Date.now()}`;
   simState.direction = direction;
   simState.startTime = Date.now();
   simState.transcript = [];
+  simState.speechAccumulator = '';
 
   document.getElementById('simCallControls').style.display = 'none';
   document.getElementById('simActivePanel').style.display = 'flex';
@@ -246,21 +345,36 @@ function startSimulatedCall(direction) {
     : 'Calling Out to +1-LOCAL-USER';
   document.getElementById('simTranscriptFeed').innerHTML = '';
 
+  // Synchronize Speech Recognition language with chosen language
+  if (simState.recognition) {
+    if (simState.selectedLang === 'gu-IN' || simState.selectedLang === 'gu') {
+      simState.recognition.lang = 'gu-IN';
+    } else if (simState.selectedLang === 'hi-IN' || simState.selectedLang === 'hi') {
+      simState.recognition.lang = 'hi-IN';
+    } else if (simState.selectedLang === 'mr-IN' || simState.selectedLang === 'mr') {
+      simState.recognition.lang = 'mr-IN';
+    } else {
+      simState.recognition.lang = 'en-IN';
+    }
+  }
+
   // Start timer
   simState.timerInterval = setInterval(updateSimTimer, 1000);
 
-  // Initial greeting tailored to selected language & persona
-  let greeting = "Hello! Thanks for calling Aura Smiles Dental Clinic. My name is Ananya. How can I assist you with your dental care today?";
+  // Initial greeting tailored to chosen language & voice persona
+  const isMale = simState.voiceType.includes('male');
+  const personaName = isMale ? 'Rohan' : 'Ananya';
+  let greeting = `Hello! Thanks for calling Aura Smiles Dental Clinic. My name is ${personaName}. How can I assist you with your dental care today?`;
   let langTag = 'en';
 
   if (simState.selectedLang === 'gu-IN' || simState.selectedLang === 'gu') {
-    greeting = "નમસ્તે! ઔરા સ્માઈલ્સ ડેન્ટલ ક્લિનિકમાં આપનું હાર્દિક સ્વાગત છે. હું તમારી દાંતની સારવારમાં શું મદદ કરી શકું?";
+    greeting = `નમસ્તે! ઔરા સ્માઈલ્સ ડેન્ટલ ક્લિનિકમાં આપનું હાર્દિક સ્વાગત છે. હું તમારી સહાયક ${isMale ? 'રોહન' : 'અનન્યા'} બોલું છું. હું તમારી દાંતની સારવાર કે તપાસમાં શું મદદ કરી શકું?`;
     langTag = 'gu';
   } else if (simState.selectedLang === 'hi-IN' || simState.selectedLang === 'hi') {
-    greeting = "नमस्ते! ऑरा स्माइल्स डेंटल क्लिनिक में आपका स्वागत है। बताइए, मैं आपकी क्या सहायता करूँ?";
+    greeting = `नमस्ते! ऑरा स्माइल्स डेंटल क्लिनिक में आपका हार्दिक स्वागत है। मैं आपकी सहायक ${isMale ? 'रोहन' : 'अनन्या'} बोल रही हूँ। बताइए, मैं आपके दाँतों के इलाज में क्या सहायता कर सकती हूँ?`;
     langTag = 'hi';
   } else if (simState.selectedLang === 'mr-IN' || simState.selectedLang === 'mr') {
-    greeting = "नमस्कार! ऑरा स्माइल्स डेंटल क्लिनिकमध्ये आपले स्वागत आहे. सांगा, मी कशी मदत करू?";
+    greeting = `नमस्कार! ऑरा स्माइल्स डेंटल क्लिनिकमध्ये आपले सहर्ष स्वागत आहे. मी ${isMale ? 'रोहन' : 'अनन्या'}, सांगा मी आपल्या दातांच्या उपचारात काय मदत करू शकेन?`;
     langTag = 'mr';
   }
 
@@ -371,8 +485,12 @@ function addSimMessage(role, text) {
     simState.transcript.push(`[${time}] USER: ${text}`);
   } else if (role === 'assistant') {
     div.className = 'sim-msg sim-msg-ai';
-    div.innerHTML = `<strong>Aura:</strong> ${escapeHtml(text)}`;
-    simState.transcript.push(`[${time}] AURA: ${text}`);
+    let persona = 'Ananya (AI Assistant)';
+    if (simState.voiceType === 'indian-male') persona = 'Rohan (AI Assistant)';
+    else if (simState.voiceType === 'western-male') persona = 'David (AI Assistant)';
+    else if (simState.voiceType === 'western-female') persona = 'Aura (AI Assistant)';
+    div.innerHTML = `<strong>${persona}:</strong> ${escapeHtml(text)}`;
+    simState.transcript.push(`[${time}] ${persona.toUpperCase()}: ${text}`);
   } else {
     div.className = 'sim-msg sim-msg-tool';
     div.innerHTML = escapeHtml(text);
@@ -389,6 +507,10 @@ async function endSimulatedCall() {
   clearTimeout(simState.silenceTimer);
   simState.speechAccumulator = '';
   stopListening();
+  if (currentSimAudio) {
+    try { currentSimAudio.pause(); } catch (_) {}
+    currentSimAudio = null;
+  }
   if ('speechSynthesis' in window) {
     window.speechSynthesis.cancel();
   }

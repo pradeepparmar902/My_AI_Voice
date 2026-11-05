@@ -159,8 +159,8 @@ export class RealtimeVoiceSession {
           response: {
             modalities: ['audio', 'text'],
             instructions: this.session.direction === 'inbound'
-              ? 'Greet the caller warmly, state your name Aura, and ask how you can assist them today.'
-              : 'Introduce yourself as Aura calling regarding their requested consultation or follow up.'
+              ? 'Greet the caller warmly in a natural, polite tone, introduce yourself as Aura from Aura Smiles Dental Clinic, and ask how you can assist them with their dental care today. If the caller speaks Hindi, Gujarati, or English, fluently match their language.'
+              : 'Warmly greet the recipient, say: "Hello, this is Aura calling from Aura Smiles Dental Clinic regarding your dental consultation inquiry. How can I assist you with your dental care today?" If the caller speaks Hindi or Gujarati, converse fluently in their language.'
           }
         };
         this.session.openAiWs.send(JSON.stringify(initialGreeting));
