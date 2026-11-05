@@ -129,6 +129,42 @@ class DatabaseService {
       call.summary = summary;
       call.sentiment = sentiment;
       this.save();
+
+      // Also export an individual human-readable text file in data/transcripts/
+      try {
+        const transcriptsDir = path.resolve(process.cwd(), 'data', 'transcripts');
+        if (!fs.existsSync(transcriptsDir)) {
+          fs.mkdirSync(transcriptsDir, { recursive: true });
+        }
+
+        const safeFilename = `transcript_${callSid}.txt`;
+        const filePath = path.join(transcriptsDir, safeFilename);
+
+        const content = `=====================================================
+CALL TRANSCRIPT & ANALYSIS
+=====================================================
+Call ID:    ${callSid}
+Date/Time:  ${call.created_at}
+Direction:  ${call.direction.toUpperCase()}
+From:       ${call.from_number}
+To:         ${call.to_number}
+Duration:   ${call.duration || 0} seconds
+Sentiment:  ${sentiment.toUpperCase()}
+
+AI SUMMARY:
+${summary}
+
+=====================================================
+VERBATIM CONVERSATION LOG
+=====================================================
+${transcript}
+=====================================================
+`;
+        fs.writeFileSync(filePath, content, 'utf-8');
+        console.log(`[Database] Transcript exported to file: ${filePath}`);
+      } catch (err) {
+        console.error('[Database] Failed to write individual transcript file:', err);
+      }
     }
   }
 
