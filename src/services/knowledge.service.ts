@@ -8,11 +8,12 @@ class KnowledgeService {
     const articles = dbService.getAllKnowledge();
     if (!articles.length || !query.trim()) return [];
 
+    // Clean and stem query words (min 3 chars)
     const queryWords = query
       .toLowerCase()
-      .replace(/[^\w\s]/g, ' ')
+      .replace(/[^\w\s\u0A80-\u0AFF\u0900-\u097F]/g, ' ')
       .split(/\s+/)
-      .filter((w) => w.length > 2);
+      .filter((w) => w.length >= 3);
 
     if (!queryWords.length) return articles.slice(0, maxResults);
 
@@ -22,11 +23,20 @@ class KnowledgeService {
       const contentLower = article.content.toLowerCase();
 
       for (const word of queryWords) {
-        // High weight if word in title
-        if (titleLower.includes(word)) score += 5;
-        // Count occurrences in content
-        const matches = (contentLower.match(new RegExp(word, 'g')) || []).length;
-        score += matches;
+        // Base stem (first 4-5 chars for prefix matching, e.g. "consult", "clean", "whiten", "pric", "open", "hour")
+        const stem = word.length > 4 ? word.substring(0, 4) : word;
+
+        // Exact match in title
+        if (titleLower.includes(word)) score += 10;
+        else if (titleLower.includes(stem)) score += 6;
+
+        // Count exact occurrences in content
+        const exactMatches = (contentLower.match(new RegExp(word, 'g')) || []).length;
+        score += exactMatches * 3;
+
+        // Count stem occurrences in content
+        const stemMatches = (contentLower.match(new RegExp(stem, 'g')) || []).length;
+        score += stemMatches * 1;
       }
 
       return { article, score };

@@ -82,9 +82,10 @@ export class LocalSimulatorService {
       return { replyText, toolExecuted: 'book_appointment', toolResult, lang };
     }
 
-    // 2. Detect Availability check (Multi-language)
-    const isAvail = lower.includes('available') || lower.includes('open slots') || lower.includes('time') || 
-      lower.includes('slots') || lower.includes('ક્યારે') || lower.includes('સમય') || lower.includes('कब') || lower.includes('कधी');
+    // 2. Detect Availability check (only when asking for open slots or appointment openings)
+    const isAvail = (lower.includes('slots') || lower.includes('slot') || lower.includes('available slots') || 
+      lower.includes('openings') || lower.includes('when can i come') || lower.includes('ક્યારે આવી શકું') || 
+      lower.includes('સ્લોટ') || lower.includes('स्लॉट') || (lower.includes('available') && !lower.includes('time')));
 
     if (isAvail) {
       const toolResult = await executeTool('check_availability', { date: 'tomorrow' }, { callSid, callerPhone });
@@ -138,31 +139,40 @@ export class LocalSimulatorService {
     const matchedDocs = knowledgeService.searchKnowledge(userText);
     if (matchedDocs.length > 0) {
       const doc = matchedDocs[0];
-      const lines = doc.content.split('\n').filter((l) => l.trim().length > 0);
-      let matchedSentence = lines[0];
+      const lines = doc.content.split('\n').map((l) => l.trim()).filter((l) => l.length > 0);
 
-      const queryWords = lower.split(/\s+/).filter((w) => w.length > 2);
+      // Score each line in the document to extract the most relevant fact
+      const queryWords = lower.replace(/[^\w\s\u0A80-\u0AFF\u0900-\u097F]/g, ' ').split(/\s+/).filter((w) => w.length >= 3);
+      let bestLine = lines[0];
+      let maxScore = -1;
+
       for (const line of lines) {
         const lineLower = line.toLowerCase();
-        if (queryWords.some((w) => lineLower.includes(w))) {
-          matchedSentence = line;
-          break;
+        let score = 0;
+        for (const w of queryWords) {
+          const stem = w.length > 4 ? w.substring(0, 4) : w;
+          if (lineLower.includes(w)) score += 3;
+          else if (lineLower.includes(stem)) score += 1;
+        }
+        if (score > maxScore) {
+          maxScore = score;
+          bestLine = line;
         }
       }
 
-      let replyText = `According to our ${doc.title}: ${matchedSentence}. Would you like any further details or help scheduling an appointment?`;
+      let replyText = `According to our ${doc.title}: ${bestLine}. Would you like any further details or help scheduling an appointment?`;
       if (lang === 'gu') {
-        replyText = `અમારા ${doc.title} મુજબ: ${matchedSentence}. શું તમને વધુ માહિતી અથવા અપોઇન્ટમેન્ટ બુકિંગમાં મદદ જોઈએ છે?`;
+        replyText = `અમારા ${doc.title} મુજબ: ${bestLine}. શું તમને વધુ માહિતી અથવા અપોઇન્ટમેન્ટ બુકિંગમાં મદદ જોઈએ છે?`;
       } else if (lang === 'hi') {
-        replyText = `हमारे ${doc.title} के अनुसार: ${matchedSentence}। क्या आपको कोई और जानकारी चाहिए या अपॉइंटमेंट बुक करना है?`;
+        replyText = `हमारे ${doc.title} के अनुसार: ${bestLine}। क्या आपको कोई और जानकारी चाहिए या अपॉइंटमेंट बुक करना है?`;
       } else if (lang === 'mr') {
-        replyText = `आमच्या ${doc.title} नुसार: ${matchedSentence}. अजून काही माहिती हवी आहे का किंवा अपॉइंटमेंट हवी आहे का?`;
+        replyText = `आमच्या ${doc.title} नुसार: ${bestLine}. अजून काही माहिती हवी आहे का किंवा अपॉइंटमेंट हवी आहे का?`;
       }
 
       return {
         replyText,
         toolExecuted: 'query_knowledge_base',
-        toolResult: { document: doc.title, snippet: matchedSentence },
+        toolResult: { document: doc.title, snippet: bestLine },
         lang
       };
     }
