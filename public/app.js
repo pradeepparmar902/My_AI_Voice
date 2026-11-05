@@ -34,7 +34,8 @@ let simState = {
   timerInterval: null,
   transcript: [],
   recognition: null,
-  isListening: false
+  isListening: false,
+  selectedLang: 'auto'
 };
 
 // Initialize
@@ -92,23 +93,53 @@ function initSpeechRecognition() {
   };
 }
 
-// Speak aloud using browser TTS
-function speakAloud(text, callback) {
+function changeSimLanguage(lang) {
+  simState.selectedLang = lang;
+  if (simState.recognition) {
+    simState.recognition.lang = lang === 'auto' ? 'en-IN' : lang;
+  }
+}
+
+function quickSend(text) {
+  if (!simState.active) {
+    startSimulatedCall('inbound');
+  }
+  setTimeout(() => {
+    handleUserSpeech(text);
+  }, 400);
+}
+
+// Speak aloud using browser TTS with multilingual regional voice support
+function speakAloud(text, callback, lang = 'en') {
   if (!('speechSynthesis' in window)) {
     if (callback) callback();
     return;
   }
 
-  window.speechSynthesis.cancel(); // Stop any pending speech
+  window.speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(text);
-  utterance.rate = 1.05;
+  utterance.rate = 1.0;
   utterance.pitch = 1.0;
 
-  // Try finding a natural female or friendly English voice
   const voices = window.speechSynthesis.getVoices();
-  const naturalVoice = voices.find(v => v.lang.startsWith('en') && (v.name.includes('Natural') || v.name.includes('Samantha') || v.name.includes('Google') || v.name.includes('Zira')));
-  if (naturalVoice) {
-    utterance.voice = naturalVoice;
+  let matchedVoice = null;
+
+  if (lang === 'gu') {
+    utterance.lang = 'gu-IN';
+    matchedVoice = voices.find(v => v.lang.startsWith('gu') || v.name.includes('Gujarati'));
+  } else if (lang === 'hi') {
+    utterance.lang = 'hi-IN';
+    matchedVoice = voices.find(v => v.lang.startsWith('hi') || v.name.includes('Hindi') || v.name.includes('Swara') || v.name.includes('Madhur'));
+  } else if (lang === 'mr') {
+    utterance.lang = 'mr-IN';
+    matchedVoice = voices.find(v => v.lang.startsWith('mr') || v.name.includes('Marathi') || v.name.includes('Aarohi'));
+  } else {
+    utterance.lang = 'en-IN';
+    matchedVoice = voices.find(v => (v.lang === 'en-IN' || v.lang.startsWith('en')) && (v.name.includes('Natural') || v.name.includes('Samantha') || v.name.includes('Neerja')));
+  }
+
+  if (matchedVoice) {
+    utterance.voice = matchedVoice;
   }
 
   updateSimStatus('AI is Speaking...', true);
@@ -231,7 +262,7 @@ async function handleUserSpeech(userText) {
       if (simState.active) {
         startListening();
       }
-    });
+    }, data.lang || 'en');
   } catch (err) {
     console.error('Simulator chat error:', err);
     startListening();

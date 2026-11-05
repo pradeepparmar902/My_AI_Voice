@@ -52,9 +52,27 @@
               <div class="sim-timer" id="simTimer">00:00</div>
             </div>
           </div>
-          <button class="btn btn-danger btn-sm" id="endSimCallBtn" onclick="endSimulatedCall()">
-            <span>🔴</span> Hang Up Call
-          </button>
+          <div class="sim-header-actions">
+            <select id="simLanguage" class="lang-select" onchange="changeSimLanguage(this.value)">
+              <option value="auto">🌐 Auto-Detect Language</option>
+              <option value="gu-IN">ગુજરાતી (Gujarati)</option>
+              <option value="hi-IN">हिंदी (Hindi / Hinglish)</option>
+              <option value="mr-IN">मराठी (Marathi)</option>
+              <option value="en-IN">English (India)</option>
+            </select>
+            <button class="btn btn-danger btn-sm" id="endSimCallBtn" onclick="endSimulatedCall()">
+              <span>🔴</span> Hang Up Call
+            </button>
+          </div>
+        </div>
+
+        <!-- Quick Test Chips -->
+        <div class="multilang-chips">
+          <span style="font-size: 11px; color: var(--text-muted); align-self: center;">Try saying:</span>
+          <button type="button" class="lang-chip" onclick="quickSend('નમસ્તે, મારે કાલ માટે અપોઇન્ટમેન્ટ બુક કરવી છે')">🇬🇺 "નમસ્તે, અપોઇન્ટમેન્ટ બુક કરવી છે"</button>
+          <button type="button" class="lang-chip" onclick="quickSend('नमस्ते, मुझे कल के लिए स्लॉट बुक करना है')">🇮🇳 "नमस्ते, स्लॉट बुक करना है"</button>
+          <button type="button" class="lang-chip" onclick="quickSend('नमस्कार, मला अपॉइंटमेंट हवी आहे')">🇮🇳 "नमस्कार, अपॉइंटमेंट हवी आहे"</button>
+          <button type="button" class="lang-chip" onclick="quickSend('What are your opening hours on Saturday?')">🇬🇧 "Saturday opening hours?"</button>
         </div>
 
         <div class="sim-live-display">
