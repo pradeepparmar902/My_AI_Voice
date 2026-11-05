@@ -36,6 +36,7 @@ let simState = {
   recognition: null,
   isListening: false,
   selectedLang: 'auto',
+  voiceType: 'indian-female',
   speechAccumulator: '',
   silenceTimer: null
 };
@@ -135,6 +136,11 @@ function changeSimLanguage(lang) {
   }
 }
 
+function changeVoiceAccent(type) {
+  simState.voiceType = type;
+  console.log('[Voice] Switched voice accent to:', type);
+}
+
 function quickSend(text) {
   if (!simState.active) {
     startSimulatedCall('inbound');
@@ -144,7 +150,7 @@ function quickSend(text) {
   }, 400);
 }
 
-// Speak aloud using browser TTS with multilingual regional voice support
+// Speak aloud using browser TTS with Indian Male/Female and Regional voice selection
 function speakAloud(text, callback, lang = 'en') {
   if (!('speechSynthesis' in window)) {
     if (callback) callback();
@@ -154,23 +160,47 @@ function speakAloud(text, callback, lang = 'en') {
   window.speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(text);
   utterance.rate = 1.0;
-  utterance.pitch = 1.0;
+  utterance.pitch = simState.voiceType.includes('male') && !simState.voiceType.includes('female') ? 0.95 : 1.05;
 
   const voices = window.speechSynthesis.getVoices();
   let matchedVoice = null;
+
+  const isIndianMale = simState.voiceType === 'indian-male';
+  const isIndianFemale = simState.voiceType === 'indian-female';
+  const isWesternMale = simState.voiceType === 'western-male';
 
   if (lang === 'gu') {
     utterance.lang = 'gu-IN';
     matchedVoice = voices.find(v => v.lang.startsWith('gu') || v.name.includes('Gujarati'));
   } else if (lang === 'hi') {
     utterance.lang = 'hi-IN';
-    matchedVoice = voices.find(v => v.lang.startsWith('hi') || v.name.includes('Hindi') || v.name.includes('Swara') || v.name.includes('Madhur'));
+    if (isIndianMale) {
+      matchedVoice = voices.find(v => (v.lang.startsWith('hi') || v.lang === 'en-IN') && (v.name.includes('Madhur') || v.name.includes('Hemant') || v.name.includes('Male')));
+    } else {
+      matchedVoice = voices.find(v => (v.lang.startsWith('hi') || v.lang === 'en-IN') && (v.name.includes('Swara') || v.name.includes('Neerja') || v.name.includes('Female')));
+    }
   } else if (lang === 'mr') {
     utterance.lang = 'mr-IN';
-    matchedVoice = voices.find(v => v.lang.startsWith('mr') || v.name.includes('Marathi') || v.name.includes('Aarohi'));
-  } else {
-    utterance.lang = 'en-IN';
-    matchedVoice = voices.find(v => (v.lang === 'en-IN' || v.lang.startsWith('en')) && (v.name.includes('Natural') || v.name.includes('Samantha') || v.name.includes('Neerja')));
+    matchedVoice = voices.find(v => v.lang.startsWith('mr') || v.name.includes('Marathi'));
+  }
+
+  // Fallback to English/Indic voice if specific language voice not found
+  if (!matchedVoice) {
+    if (isIndianFemale) {
+      utterance.lang = 'en-IN';
+      matchedVoice = voices.find(v => (v.lang === 'en-IN' || v.lang.startsWith('hi')) && (v.name.includes('Neerja') || v.name.includes('Swara') || v.name.includes('Heera') || v.name.includes('Female')));
+      if (!matchedVoice) matchedVoice = voices.find(v => v.lang === 'en-IN');
+    } else if (isIndianMale) {
+      utterance.lang = 'en-IN';
+      matchedVoice = voices.find(v => (v.lang === 'en-IN' || v.lang.startsWith('hi')) && (v.name.includes('Prabhat') || v.name.includes('Madhur') || v.name.includes('Ravi') || v.name.includes('Male')));
+      if (!matchedVoice) matchedVoice = voices.find(v => v.lang === 'en-IN');
+    } else if (isWesternMale) {
+      utterance.lang = 'en-US';
+      matchedVoice = voices.find(v => v.lang.startsWith('en') && (v.name.includes('David') || v.name.includes('George') || v.name.includes('Male')));
+    } else {
+      utterance.lang = 'en-US';
+      matchedVoice = voices.find(v => v.lang.startsWith('en') && (v.name.includes('Samantha') || v.name.includes('Zira') || v.name.includes('Natural')));
+    }
   }
 
   if (matchedVoice) {

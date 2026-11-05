@@ -53,6 +53,12 @@
             </div>
           </div>
           <div class="sim-header-actions">
+            <select id="simVoiceAccent" class="lang-select" onchange="changeVoiceAccent(this.value)" title="Voice Accent & Gender">
+              <option value="indian-female">👩 Indian Female (Swara / Neerja)</option>
+              <option value="indian-male">👨 Indian Male (Madhur / Prabhat)</option>
+              <option value="western-female">👩 Western Female (Aura / Samantha)</option>
+              <option value="western-male">👨 Western Male (David)</option>
+            </select>
             <select id="simLanguage" class="lang-select" onchange="changeSimLanguage(this.value)">
               <option value="auto">🌐 Auto-Detect Language</option>
               <option value="gu-IN">ગુજરાતી (Gujarati)</option>
