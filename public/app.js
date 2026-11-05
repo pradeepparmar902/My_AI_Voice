@@ -35,7 +35,9 @@ let simState = {
   transcript: [],
   recognition: null,
   isListening: false,
-  selectedLang: 'auto'
+  selectedLang: 'auto',
+  speechAccumulator: '',
+  silenceTimer: null
 };
 
 // Initialize
@@ -56,7 +58,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }, 6000);
 });
 
-// Setup Speech Recognition
+// Setup Speech Recognition with Conversational Pause Buffering (Human-grade VAD)
 function initSpeechRecognition() {
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SpeechRecognition) {
@@ -66,16 +68,49 @@ function initSpeechRecognition() {
 
   simState.recognition = new SpeechRecognition();
   simState.recognition.continuous = true;
-  simState.recognition.interimResults = false;
-  simState.recognition.lang = 'en-US';
+  simState.recognition.interimResults = true;
+  simState.recognition.lang = 'en-IN';
 
   simState.recognition.onresult = (event) => {
-    const lastResult = event.results[event.results.length - 1];
-    if (lastResult.isFinal) {
-      const userText = lastResult[0].transcript.trim();
-      if (userText) {
-        handleUserSpeech(userText);
+    if (!simState.active) return;
+
+    let finalChunk = '';
+    let interimChunk = '';
+
+    for (let i = event.resultIndex; i < event.results.length; ++i) {
+      if (event.results[i].isFinal) {
+        finalChunk += ' ' + event.results[i][0].transcript;
+      } else {
+        interimChunk += ' ' + event.results[i][0].transcript;
       }
+    }
+
+    if (finalChunk.trim()) {
+      simState.speechAccumulator = simState.speechAccumulator 
+        ? `${simState.speechAccumulator} ${finalChunk.trim()}` 
+        : finalChunk.trim();
+
+      updateSimStatus(`Listening: "${simState.speechAccumulator}"...`, false);
+
+      // Human thinking pause timer (1500ms): Wait until speaker genuinely finishes their thought
+      clearTimeout(simState.silenceTimer);
+      simState.silenceTimer = setTimeout(() => {
+        const fullSentence = simState.speechAccumulator.trim();
+        simState.speechAccumulator = '';
+        if (fullSentence.length > 0) {
+          // Ignore accidental 1-letter / background noise clicks unless it's a real word
+          if (fullSentence.length <= 2 && !['hi', 'no', 'ok', 'ha', 'ji'].includes(fullSentence.toLowerCase())) {
+            updateSimStatus('Listening for your voice...', false);
+            return;
+          }
+          handleUserSpeech(fullSentence);
+        }
+      }, 1400);
+    } else if (interimChunk.trim()) {
+      // User is actively speaking right now
+      clearTimeout(simState.silenceTimer);
+      const preview = (simState.speechAccumulator ? simState.speechAccumulator + ' ' : '') + interimChunk.trim();
+      updateSimStatus(`Hearing: "${preview}"...`, false);
     }
   };
 
@@ -304,6 +339,8 @@ function addSimMessage(role, text) {
 async function endSimulatedCall() {
   if (!simState.active) return;
 
+  clearTimeout(simState.silenceTimer);
+  simState.speechAccumulator = '';
   stopListening();
   if ('speechSynthesis' in window) {
     window.speechSynthesis.cancel();
