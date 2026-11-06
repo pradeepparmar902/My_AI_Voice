@@ -121,7 +121,7 @@ app.post('/twiml/incoming', async (req, reply) => {
 
   // Generate WebSocket media stream URL (Must strictly be wss:// for Twilio)
   const base = config.publicUrl || `https://${req.headers.host}`;
-  const streamUrl = `${base.replace(/^https:\/\//i, 'wss://').replace(/^http:\/\//i, 'wss://')}/ws/media-stream?callerPhone=${encodeURIComponent(fromNumber)}&direction=inbound&callSid=${encodeURIComponent(callSid)}`;
+  const streamUrl = base.replace(/^https:\/\//i, 'wss://').replace(/^http:\/\//i, 'wss://') + '/ws/media-stream';
   logDebug(`[Twilio Webhook] Inbound call streamUrl: ${streamUrl}`);
 
   // Respond with TwiML
@@ -132,6 +132,7 @@ app.post('/twiml/incoming', async (req, reply) => {
     <Stream url="${streamUrl}">
       <Parameter name="callerPhone" value="${fromNumber}" />
       <Parameter name="direction" value="inbound" />
+      <Parameter name="callSid" value="${callSid}" />
     </Stream>
   </Connect>
 </Response>`;
@@ -148,7 +149,7 @@ app.post('/twiml/outbound', async (req, reply) => {
   logDebug(`[Twilio Webhook] Outbound call connected to ${toNumber} (CallSid: ${callSid})`);
 
   const base = config.publicUrl || `https://${req.headers.host}`;
-  const streamUrl = `${base.replace(/^https:\/\//i, 'wss://').replace(/^http:\/\//i, 'wss://')}/ws/media-stream?callerPhone=${encodeURIComponent(toNumber)}&direction=outbound&callSid=${encodeURIComponent(callSid)}`;
+  const streamUrl = base.replace(/^https:\/\//i, 'wss://').replace(/^http:\/\//i, 'wss://') + '/ws/media-stream';
   logDebug(`[Twilio Webhook] Outbound call streamUrl: ${streamUrl}`);
 
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -158,6 +159,7 @@ app.post('/twiml/outbound', async (req, reply) => {
     <Stream url="${streamUrl}">
       <Parameter name="callerPhone" value="${toNumber}" />
       <Parameter name="direction" value="outbound" />
+      <Parameter name="callSid" value="${callSid}" />
     </Stream>
   </Connect>
 </Response>`;

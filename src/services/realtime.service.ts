@@ -18,6 +18,7 @@ interface StreamSession {
 
 export class RealtimeVoiceSession {
   private session: StreamSession;
+  private sessionConfigured = false;
 
   constructor(twilioWs: WebSocket, initialParams?: any) {
     this.session = {
@@ -133,7 +134,9 @@ export class RealtimeVoiceSession {
   }
 
   private configureSession() {
+    if (this.sessionConfigured) return;
     if (!this.session.openAiWs || this.session.openAiWs.readyState !== WebSocket.OPEN) return;
+    this.sessionConfigured = true;
 
     // Check customer info in DB to provide personalization
     let customerContext = '';
