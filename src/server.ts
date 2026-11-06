@@ -246,9 +246,9 @@ app.post('/api/calls/outbound', async (req, reply) => {
     return reply.status(400).send({ error: 'Destination phone number "to" is required.' });
   }
 
-  if (!config.twilio.accountSid || !config.twilio.authToken || !config.twilio.phoneNumber) {
+  if (!config.twilio.accountSid || !config.twilio.authToken) {
     return reply.status(400).send({
-      error: 'Twilio is not yet configured. Please set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_PHONE_NUMBER in .env'
+      error: 'Twilio is not yet configured. Please set TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN in environment.'
     });
   }
 
@@ -264,7 +264,7 @@ app.post('/api/calls/outbound', async (req, reply) => {
     dbService.createCall({
       call_sid: call.sid,
       direction: 'outbound',
-      from_number: config.twilio.phoneNumber,
+      from_number: call.from || config.twilio.phoneNumber || '+17372508034',
       to_number: to,
       status: 'queued'
     });

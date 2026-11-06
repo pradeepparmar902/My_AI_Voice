@@ -38,15 +38,22 @@ class TwilioService {
    * Initiates an outbound telephone call to a destination number.
    */
   public async makeOutboundCall(to: string, webhookUrl: string) {
-    if (!this.client || !config.twilio.phoneNumber) {
-      throw new Error('Twilio credentials or Phone Number not configured.');
+    if (!this.client) {
+      throw new Error('Twilio credentials not configured.');
     }
 
-    console.log(`[Twilio] Initiating outbound call from ${config.twilio.phoneNumber} to ${to}...`);
+    // On Twilio Trial accounts, calling the verified recipient +919819984437 strictly requires
+    // dialing from the assigned trial number +17372508034 (Error 573003).
+    let fromNumber = config.twilio.phoneNumber || '+17372508034';
+    if (to.replace(/\D/g, '').endsWith('9819984437')) {
+      fromNumber = '+17372508034';
+    }
+
+    console.log(`[Twilio] Initiating outbound call from ${fromNumber} to ${to}...`);
     try {
       const call = await this.client.calls.create({
         to,
-        from: config.twilio.phoneNumber,
+        from: fromNumber,
         url: webhookUrl
       });
       return call;
