@@ -19,6 +19,10 @@ const __dirname = path.dirname(__filename);
 
 const app = fastify({ logger: true });
 
+app.server.on('upgrade', (req, socket, head) => {
+  logDebug(`[HTTP Server Upgrade] URL: ${req.url}, UA: ${req.headers['user-agent']}`);
+});
+
 export const debugLogs: string[] = [];
 export function logDebug(msg: string) {
   const line = `[${new Date().toISOString()}] ${msg}`;
@@ -127,7 +131,6 @@ app.post('/twiml/incoming', async (req, reply) => {
   // Respond with TwiML
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say voice="Polly.Aditi">Welcome to Aura Smiles Dental Clinic. Connecting your call.</Say>
   <Connect>
     <Stream url="${streamUrl}">
       <Parameter name="callerPhone" value="${fromNumber}" />
@@ -154,7 +157,6 @@ app.post('/twiml/outbound', async (req, reply) => {
 
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say voice="Polly.Aditi">Connecting your call to Aura Dental Clinic.</Say>
   <Connect>
     <Stream url="${streamUrl}">
       <Parameter name="callerPhone" value="${toNumber}" />
