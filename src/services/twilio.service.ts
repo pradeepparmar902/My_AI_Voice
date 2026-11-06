@@ -43,13 +43,25 @@ class TwilioService {
     }
 
     console.log(`[Twilio] Initiating outbound call from ${config.twilio.phoneNumber} to ${to}...`);
-    const call = await this.client.calls.create({
-      to,
-      from: config.twilio.phoneNumber,
-      url: webhookUrl
-    });
-
-    return call;
+    try {
+      const call = await this.client.calls.create({
+        to,
+        from: config.twilio.phoneNumber,
+        url: webhookUrl
+      });
+      return call;
+    } catch (err: any) {
+      if (err.code === 573003 || err.message?.includes('not assigned')) {
+        console.log('[Twilio] Error 573003 detected. Retrying with assigned trial sandbox number +17372508034...');
+        const retryCall = await this.client.calls.create({
+          to,
+          from: '+17372508034',
+          url: webhookUrl
+        });
+        return retryCall;
+      }
+      throw err;
+    }
   }
 
   /**
