@@ -10,6 +10,10 @@ class SummaryService {
     }
   }
 
+  public async generateSummary(transcript: string, metadata?: any): Promise<{ summary: string; sentiment: string; actionItems: string[] }> {
+    return this.analyzeCall(transcript);
+  }
+
   public async analyzeCall(transcript: string): Promise<{ summary: string; sentiment: string; actionItems: string[] }> {
     if (!transcript || transcript.trim().length === 0) {
       return {

@@ -19,17 +19,22 @@ interface StreamSession {
 export class RealtimeVoiceSession {
   private session: StreamSession;
 
-  constructor(twilioWs: WebSocket) {
+  constructor(twilioWs: WebSocket, initialParams?: any) {
     this.session = {
       streamSid: '',
-      callSid: '',
-      callerPhone: 'Unknown',
-      direction: 'inbound',
+      callSid: initialParams?.callSid || '',
+      callerPhone: initialParams?.callerPhone || 'Unknown',
+      direction: initialParams?.direction || 'inbound',
       openAiWs: null,
       twilioWs,
       transcriptEntries: [],
       startTime: Date.now()
     };
+
+    // Early-initialize OpenAI Realtime so audio starts instantly without lag
+    if (this.session.callerPhone && this.session.callerPhone !== 'Unknown') {
+      this.initOpenAiSession();
+    }
   }
 
   public handleTwilioMessage(message: WebSocket.RawData) {
@@ -39,16 +44,20 @@ export class RealtimeVoiceSession {
       switch (data.event) {
         case 'connected': {
           console.log('[Voice Session] Twilio media stream connected.');
+          if (!this.session.openAiWs) {
+            this.initOpenAiSession();
+          }
           break;
         }
 
         case 'start': {
           this.session.streamSid = data.start.streamSid;
-          this.session.callSid = data.start.callSid;
+          if (data.start.callSid) {
+            this.session.callSid = data.start.callSid;
+          }
 
-          // Twilio passes custom parameters if supplied
           const customParams = data.start.customParameters || {};
-          if (customParams.callerPhone) {
+          if (customParams.callerPhone && this.session.callerPhone === 'Unknown') {
             this.session.callerPhone = customParams.callerPhone;
           }
           if (customParams.direction) {
@@ -56,7 +65,11 @@ export class RealtimeVoiceSession {
           }
 
           console.log(`[Voice Session] Twilio Stream started. StreamSid: ${this.session.streamSid}, CallSid: ${this.session.callSid}, Phone: ${this.session.callerPhone}`);
-          this.initOpenAiSession();
+          if (!this.session.openAiWs) {
+            this.initOpenAiSession();
+          } else if (this.session.openAiWs.readyState === WebSocket.OPEN) {
+            this.configureSession();
+          }
           break;
         }
 
@@ -222,6 +235,7 @@ export class RealtimeVoiceSession {
               text: event.transcript.trim(),
               time: new Date().toLocaleTimeString()
             });
+            this.persistLiveTranscript();
           }
           break;
         }
@@ -236,6 +250,7 @@ export class RealtimeVoiceSession {
               text: event.transcript.trim(),
               time: new Date().toLocaleTimeString()
             });
+            this.persistLiveTranscript();
           }
           break;
         }
@@ -283,6 +298,21 @@ export class RealtimeVoiceSession {
     }
   }
 
+  private persistLiveTranscript() {
+    if (!this.session.callSid) return;
+    const formattedTranscript = this.session.transcriptEntries
+      .map((entry) => `[${entry.time}] ${entry.speaker.toUpperCase()}: ${entry.text}`)
+      .join('\n');
+    const durationSeconds = Math.round((Date.now() - this.session.startTime) / 1000);
+    dbService.updateCallStatus(this.session.callSid, 'in-progress', durationSeconds);
+    dbService.saveCallTranscriptAndSummary(
+      this.session.callSid,
+      formattedTranscript,
+      'Live call in progress...',
+      'positive'
+    );
+  }
+
   public async endSession() {
     if (this.session.openAiWs) {
       try {
@@ -296,20 +326,28 @@ export class RealtimeVoiceSession {
       .map((entry) => `[${entry.time}] ${entry.speaker.toUpperCase()}: ${entry.text}`)
       .join('\n');
 
-    console.log(`[Voice Session] Call ended (${durationSeconds}s). Performing post-call analysis...`);
+    console.log(`[Voice Session] Call ended (${durationSeconds}s). Total entries: ${this.session.transcriptEntries.length}`);
 
-    // Perform AI analysis
-    const analysis = await summaryService.analyzeCall(formattedTranscript);
-
-    // Save to database
-    dbService.updateCallStatus(this.session.callSid, 'completed', durationSeconds);
-    dbService.saveCallTranscriptAndSummary(
-      this.session.callSid,
-      formattedTranscript,
-      analysis.summary,
-      analysis.sentiment
-    );
-
-    console.log(`[Voice Session] Call analysis saved for CallSid: ${this.session.callSid}`);
+    if (this.session.callSid) {
+      try {
+        const analysis = await summaryService.analyzeCall(formattedTranscript);
+        dbService.updateCallStatus(this.session.callSid, 'completed', durationSeconds);
+        dbService.saveCallTranscriptAndSummary(
+          this.session.callSid,
+          formattedTranscript || 'No speech recorded during this session.',
+          analysis.summary,
+          analysis.sentiment
+        );
+      } catch (err: any) {
+        console.error('[Voice Session] Analysis fallback:', err?.message || err);
+        dbService.updateCallStatus(this.session.callSid, 'completed', durationSeconds);
+        dbService.saveCallTranscriptAndSummary(
+          this.session.callSid,
+          formattedTranscript || 'No speech recorded during this session.',
+          'Call completed.',
+          'neutral'
+        );
+      }
+    }
   }
 }

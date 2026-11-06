@@ -19,6 +19,14 @@ const __dirname = path.dirname(__filename);
 
 const app = fastify({ logger: true });
 
+export const debugLogs: string[] = [];
+export function logDebug(msg: string) {
+  const line = `[${new Date().toISOString()}] ${msg}`;
+  console.log(line);
+  debugLogs.push(line);
+  if (debugLogs.length > 200) debugLogs.shift();
+}
+
 // Register Plugins
 await app.register(fastifyCors, { origin: true });
 await app.register(fastifyFormbody);
@@ -86,6 +94,10 @@ app.get('/api/debug/health', async () => {
   }
 });
 
+app.get('/api/debug/logs', async () => {
+  return debugLogs;
+});
+
 // --- Webhook: Twilio Incoming Voice Call ---
 app.post('/twiml/incoming', async (req, reply) => {
   const body = req.body as Record<string, string>;
@@ -93,7 +105,7 @@ app.post('/twiml/incoming', async (req, reply) => {
   const fromNumber = body.From || 'Unknown';
   const toNumber = body.To || config.twilio.phoneNumber;
 
-  console.log(`[Twilio Webhook] Incoming call received from ${fromNumber} (CallSid: ${callSid})`);
+  logDebug(`[Twilio Webhook] Incoming call received from ${fromNumber} (CallSid: ${callSid})`);
 
   // Record call in DB
   dbService.createCall({
@@ -109,8 +121,8 @@ app.post('/twiml/incoming', async (req, reply) => {
 
   // Generate WebSocket media stream URL (Must strictly be wss:// for Twilio)
   const base = config.publicUrl || `https://${req.headers.host}`;
-  const streamUrl = base.replace(/^https:\/\//i, 'wss://').replace(/^http:\/\//i, 'wss://') + '/ws/media-stream';
-  console.log(`[Twilio Webhook] Inbound call streamUrl: ${streamUrl}`);
+  const streamUrl = `${base.replace(/^https:\/\//i, 'wss://').replace(/^http:\/\//i, 'wss://')}/ws/media-stream?callerPhone=${encodeURIComponent(fromNumber)}&direction=inbound&callSid=${encodeURIComponent(callSid)}`;
+  logDebug(`[Twilio Webhook] Inbound call streamUrl: ${streamUrl}`);
 
   // Respond with TwiML
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -122,7 +134,6 @@ app.post('/twiml/incoming', async (req, reply) => {
       <Parameter name="direction" value="inbound" />
     </Stream>
   </Connect>
-  <Pause length="40" />
 </Response>`;
 
   reply.header('Content-Type', 'text/xml').send(twiml);
@@ -134,11 +145,11 @@ app.post('/twiml/outbound', async (req, reply) => {
   const callSid = body.CallSid || `out_${Date.now()}`;
   const toNumber = body.To || 'Unknown';
 
-  console.log(`[Twilio Webhook] Outbound call connected to ${toNumber} (CallSid: ${callSid})`);
+  logDebug(`[Twilio Webhook] Outbound call connected to ${toNumber} (CallSid: ${callSid})`);
 
   const base = config.publicUrl || `https://${req.headers.host}`;
-  const streamUrl = base.replace(/^https:\/\//i, 'wss://').replace(/^http:\/\//i, 'wss://') + '/ws/media-stream';
-  console.log(`[Twilio Webhook] Outbound call streamUrl: ${streamUrl}`);
+  const streamUrl = `${base.replace(/^https:\/\//i, 'wss://').replace(/^http:\/\//i, 'wss://')}/ws/media-stream?callerPhone=${encodeURIComponent(toNumber)}&direction=outbound&callSid=${encodeURIComponent(callSid)}`;
+  logDebug(`[Twilio Webhook] Outbound call streamUrl: ${streamUrl}`);
 
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
@@ -149,7 +160,6 @@ app.post('/twiml/outbound', async (req, reply) => {
       <Parameter name="direction" value="outbound" />
     </Stream>
   </Connect>
-  <Pause length="40" />
 </Response>`;
 
   reply.header('Content-Type', 'text/xml').send(twiml);
@@ -171,17 +181,18 @@ app.post('/api/calls/status', async (req, reply) => {
 });
 
 // --- WebSocket Route for Bi-Directional Media Stream ---
-app.get('/ws/media-stream', { websocket: true }, (ws: any) => {
-  console.log('[WebSocket] Twilio Media Stream client connected.');
+app.get('/ws/media-stream', { websocket: true }, (ws: any, req: any) => {
+  const query = (req && req.query) ? req.query : {};
+  logDebug(`[WebSocket] Twilio Media Stream connected. Query: ${JSON.stringify(query)}`);
   const socket = ws.socket || ws;
-  const session = new RealtimeVoiceSession(socket);
+  const session = new RealtimeVoiceSession(socket, query);
 
   socket.on('message', (message: any) => {
     session.handleTwilioMessage(message);
   });
 
-  socket.on('close', () => {
-    console.log('[WebSocket] Twilio Media Stream client disconnected.');
+  socket.on('close', (code: any, reason: any) => {
+    logDebug(`[WebSocket] Twilio Media Stream disconnected. Code: ${code}, Reason: ${reason}`);
     session.endSession();
   });
 });
