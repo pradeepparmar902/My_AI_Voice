@@ -1,4 +1,5 @@
 import fastify from 'fastify';
+import WebSocket from 'ws';
 import fastifyWebsocket from '@fastify/websocket';
 import fastifyCors from '@fastify/cors';
 import fastifyFormbody from '@fastify/formbody';
@@ -28,6 +29,61 @@ await app.register(fastifyWebsocket);
 await app.register(fastifyStatic, {
   root: path.join(__dirname, '../public'),
   prefix: '/'
+});
+
+// --- Health & Diagnostic Endpoint ---
+app.get('/api/debug/health', async () => {
+  const key = config.openai.apiKey || '';
+  const keyInfo = {
+    present: !!key,
+    length: key.length,
+    prefix: key.substring(0, 10),
+    suffix: key.substring(key.length - 8)
+  };
+
+  try {
+    const ws = new WebSocket(`wss://api.openai.com/v1/realtime?model=${config.openai.realtimeModel}`, {
+      headers: { Authorization: `Bearer ${key}` }
+    });
+
+    const result = await new Promise((resolve) => {
+      const timer = setTimeout(() => {
+        try { ws.terminate(); } catch (_) {}
+        resolve({ status: 'timeout' });
+      }, 5000);
+
+      ws.on('open', () => {
+        clearTimeout(timer);
+        try { ws.close(); } catch (_) {}
+        resolve({ status: 'connected_ok' });
+      });
+
+      ws.on('error', (e: any) => {
+        clearTimeout(timer);
+        resolve({ status: 'error', error: e.message });
+      });
+
+      ws.on('close', (code: any, reason: any) => {
+        clearTimeout(timer);
+        resolve({ status: `closed_${code}`, reason: reason.toString() });
+      });
+    });
+
+    return {
+      version: 'GA-1.0.4',
+      model: config.openai.realtimeModel,
+      keyInfo,
+      publicUrl: config.publicUrl,
+      twilioConfigured: !!(config.twilio.accountSid && config.twilio.authToken && config.twilio.phoneNumber),
+      openAiRealtimeTest: result
+    };
+  } catch (err: any) {
+    return {
+      version: 'GA-1.0.4',
+      keyInfo,
+      error: err.message
+    };
+  }
 });
 
 // --- Webhook: Twilio Incoming Voice Call ---

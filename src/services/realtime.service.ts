@@ -37,6 +37,11 @@ export class RealtimeVoiceSession {
       const data = JSON.parse(message.toString());
 
       switch (data.event) {
+        case 'connected': {
+          console.log('[Voice Session] Twilio media stream connected.');
+          break;
+        }
+
         case 'start': {
           this.session.streamSid = data.start.streamSid;
           this.session.callSid = data.start.callSid;
@@ -50,7 +55,7 @@ export class RealtimeVoiceSession {
             this.session.direction = customParams.direction;
           }
 
-          console.log(`[Voice Session] Twilio Stream started. StreamSid: ${this.session.streamSid}, CallSid: ${this.session.callSid}`);
+          console.log(`[Voice Session] Twilio Stream started. StreamSid: ${this.session.streamSid}, CallSid: ${this.session.callSid}, Phone: ${this.session.callerPhone}`);
           this.initOpenAiSession();
           break;
         }
@@ -73,6 +78,7 @@ export class RealtimeVoiceSession {
         }
 
         default:
+          console.log(`[Voice Session] Twilio event: ${data.event}`);
           break;
       }
     } catch (err) {
