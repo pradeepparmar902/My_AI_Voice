@@ -101,16 +101,16 @@ export class RealtimeVoiceSession {
       this.configureSession();
     });
 
-    this.session.openAiWs.on('message', (raw) => {
+    this.session.openAiWs.on('message', (raw: any) => {
       this.handleOpenAiMessage(raw);
     });
 
-    this.session.openAiWs.on('error', (err) => {
-      console.error('[OpenAI Realtime] WebSocket Error:', err.message);
+    this.session.openAiWs.on('error', (err: any) => {
+      console.error('[OpenAI Realtime] WebSocket Error:', err?.message || err);
     });
 
-    this.session.openAiWs.on('close', (code, reason) => {
-      console.log(`[OpenAI Realtime] Connection closed (${code}): ${reason.toString()}`);
+    this.session.openAiWs.on('close', (code: any, reason: any) => {
+      console.log(`[OpenAI Realtime] Connection closed (${code}): ${reason?.toString() || ''}`);
     });
   }
 
