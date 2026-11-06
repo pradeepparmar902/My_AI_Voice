@@ -91,8 +91,7 @@ export class RealtimeVoiceSession {
 
     this.session.openAiWs = new WebSocket(url, {
       headers: {
-        Authorization: `Bearer ${config.openai.apiKey}`,
-        'OpenAI-Beta': 'realtime=v1'
+        Authorization: `Bearer ${config.openai.apiKey}`
       }
     });
 
@@ -129,19 +128,25 @@ export class RealtimeVoiceSession {
     const sessionUpdate = {
       type: 'session.update',
       session: {
-        modalities: ['audio', 'text'],
+        type: 'realtime',
         instructions: `${config.openai.systemPrompt}${customerContext}${knowledgeContext}\nYou are speaking to phone number: ${this.session.callerPhone}.`,
-        voice: config.openai.voice,
-        input_audio_format: 'g711_ulaw',
-        output_audio_format: 'g711_ulaw',
-        input_audio_transcription: {
-          model: 'whisper-1'
-        },
-        turn_detection: {
-          type: 'server_vad',
-          threshold: 0.5,
-          prefix_padding_ms: 300,
-          silence_duration_ms: 500
+        audio: {
+          input: {
+            format: { type: 'audio/pcmu' },
+            transcription: { model: 'whisper-1' },
+            turn_detection: {
+              type: 'server_vad',
+              threshold: 0.5,
+              prefix_padding_ms: 300,
+              silence_duration_ms: 500,
+              create_response: true,
+              interrupt_response: true
+            }
+          },
+          output: {
+            format: { type: 'audio/pcmu' },
+            voice: config.openai.voice
+          }
         },
         tools: voiceTools,
         tool_choice: 'auto',
@@ -157,7 +162,6 @@ export class RealtimeVoiceSession {
         const initialGreeting = {
           type: 'response.create',
           response: {
-            modalities: ['audio', 'text'],
             instructions: this.session.direction === 'inbound'
               ? 'Greet the caller warmly in a natural, polite tone, introduce yourself as Aura from Aura Smiles Dental Clinic, and ask how you can assist them with their dental care today. If the caller speaks Hindi, Gujarati, or English, fluently match their language.'
               : 'Warmly greet the recipient, say: "Hello, this is Aura calling from Aura Smiles Dental Clinic regarding your dental consultation inquiry. How can I assist you with your dental care today?" If the caller speaks Hindi or Gujarati, converse fluently in their language.'
@@ -173,14 +177,16 @@ export class RealtimeVoiceSession {
       const event = JSON.parse(raw.toString());
 
       switch (event.type) {
-        // 1. Streaming audio chunks back to Twilio
+        // 1. Streaming audio chunks back to Twilio (Supports GA and legacy event names)
+        case 'response.output_audio.delta':
         case 'response.audio.delta': {
-          if (event.delta && this.session.twilioWs.readyState === WebSocket.OPEN) {
+          const delta = event.delta;
+          if (delta && this.session.twilioWs.readyState === WebSocket.OPEN) {
             const mediaMessage = {
               event: 'media',
               streamSid: this.session.streamSid,
               media: {
-                payload: event.delta
+                payload: delta
               }
             };
             this.session.twilioWs.send(JSON.stringify(mediaMessage));
@@ -189,7 +195,6 @@ export class RealtimeVoiceSession {
         }
 
         // 2. Interruption detection (Barge-in)
-        // When user starts speaking, tell Twilio to immediately clear any unplayed audio
         case 'input_audio_buffer.speech_started': {
           console.log('[Voice Session] Interruption detected. Flushing Twilio audio buffer...');
           if (this.session.twilioWs.readyState === WebSocket.OPEN) {
@@ -215,7 +220,8 @@ export class RealtimeVoiceSession {
           break;
         }
 
-        // 4. Transcription of Assistant speech
+        // 4. Transcription of Assistant speech (Supports GA and legacy event names)
+        case 'response.output_audio_transcript.done':
         case 'response.audio_transcript.done': {
           if (event.transcript && event.transcript.trim()) {
             console.log(`[Aura AI]: ${event.transcript}`);

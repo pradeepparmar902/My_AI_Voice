@@ -9,7 +9,7 @@ export const config = {
   // OpenAI Configuration
   openai: {
     apiKey: process.env.OPENAI_API_KEY || '',
-    realtimeModel: process.env.OPENAI_REALTIME_MODEL || 'gpt-4o-realtime-preview-2024-12-17',
+    realtimeModel: process.env.OPENAI_REALTIME_MODEL || 'gpt-realtime-mini',
     voice: process.env.AI_VOICE || 'alloy', // alloy, echo, shimmer, ash, ballad, coral, sage, verse
     temperature: parseFloat(process.env.AI_TEMPERATURE || '0.7'),
     systemPrompt: process.env.AI_SYSTEM_PROMPT || `You are "Aura", a warm, natural, and highly capable multilingual AI voice assistant.
