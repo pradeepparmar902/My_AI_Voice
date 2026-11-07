@@ -97,7 +97,7 @@ export class LocalSimulatorService {
     callerPhone: string,
     callSid: string,
     userText: string,
-    history: SimulatorMessage[]
+    history: any[]
   ): Promise<{ replyText: string; toolExecuted?: string; toolResult?: any; lang?: string }> {
     const lang = detectLanguage(userText);
 
@@ -124,7 +124,11 @@ KEY CLINIC FACTS:
 - Established / Age: Founded in 2011, serving patients with excellence for over 15 years.
 - Operating Hours: Monday to Friday 8:00 AM to 8:00 PM; Saturday 9:00 AM to 5:00 PM; Sunday 10:00 AM to 2:00 PM for emergencies & appointments.
 - 24/7 Emergency Helpline: +91 98765 43210.
-- Key Doctors: Dr. Ananya Sharma (Orthodontist, 14 yrs exp), Dr. Rajesh Patel (Implants & Surgery, 16 yrs exp), Dr. Samir Mehta (Root Canal, Microscope RCT), Dr. Priya Nair (Pediatric Kids Dentist).
+- Doctors and Educational Qualifications:
+  * Dr. Ananya Sharma: BDS, MDS Orthodontics (AIIMS New Delhi), Certified Invisalign Diamond Provider, 14 years experience.
+  * Dr. Rajesh Patel: BDS, MDS Oral & Maxillofacial Surgery (Govt Dental College Mumbai), Fellow of ICOI (USA), 16 years experience.
+  * Dr. Samir Mehta: BDS, MDS Endodontics & Conservative Dentistry (KEM Hospital Mumbai), Microscopic RCT Specialist, 12 years experience.
+  * Dr. Priya Nair: BDS, MDS Pedodontics (Child Dentistry, Manipal University), 10 years experience.
 - Consultation & Digital X-Ray fee: ₹500 ($50).
 
 MULTILINGUAL VOICE RULES:
@@ -134,16 +138,29 @@ MULTILINGUAL VOICE RULES:
 - If the user speaks English, reply in natural conversational English.
 - Keep responses short, concise, and conversational (1 to 2 sentences per turn is ideal for voice calls).
 - Do not use markdown symbols (*, #, bullet points) in your replies.
-- When the user asks to book an appointment, check availability, or gives their name, invoke the relevant tool.`;
+- CONVERSATION MEMORY: Maintain full multi-turn memory! If the caller already provided their name or the treatment they want (e.g. root canal or cleaning), DO NOT ask for their name again. Proceed to ask for their preferred time (e.g. "પ્રદીપભાઈ, તમને કાલ સવારે 10:00 વાગ્યે કે બપોરે 3:00 વાગ્યે સમય અનુકૂળ રહેશે?") and then invoke 'book_appointment'.`;
 
         const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
           { role: 'system', content: systemPrompt }
         ];
 
-        // Append conversation history (up to last 6 turns)
-        for (const msg of (history || []).slice(-6)) {
-          if (msg.role === 'user' || msg.role === 'assistant') {
-            messages.push({ role: msg.role, content: msg.content });
+        // Append conversation history with support for both object and raw transcript string format
+        for (const item of (history || []).slice(-12)) {
+          if (typeof item === 'string') {
+            const isUser = item.includes('USER:');
+            const cleanText = item.replace(/^\[.*?\]\s*(USER|ANANYA|ROHAN|AURA|ASSISTANT.*?):\s*/i, '').trim();
+            if (cleanText) {
+              messages.push({
+                role: isUser ? 'user' : 'assistant',
+                content: cleanText
+              });
+            }
+          } else if (item && typeof item === 'object') {
+            const role = (item as any).role === 'user' ? 'user' : 'assistant';
+            const content = (item as any).content || (item as any).text || '';
+            if (content) {
+              messages.push({ role, content });
+            }
           }
         }
 

@@ -33,6 +33,7 @@ let simState = {
   startTime: null,
   timerInterval: null,
   transcript: [],
+  messages: [],
   recognition: null,
   isListening: false,
   selectedLang: 'gu-IN',
@@ -98,7 +99,7 @@ function initSpeechRecognition() {
 
       updateSimStatus(`Listening: "${simState.speechAccumulator}"...`, false);
 
-      // Conversational thinking pause timer (1800ms): Wait until speaker completes their thought
+      // Snappy conversational pause timer (750ms): Responds promptly as soon as speaker finishes thought
       clearTimeout(simState.silenceTimer);
       simState.silenceTimer = setTimeout(() => {
         const fullSentence = simState.speechAccumulator.trim();
@@ -111,7 +112,7 @@ function initSpeechRecognition() {
           }
           handleUserSpeech(fullSentence);
         }
-      }, 1800);
+      }, 750);
     } else if (interimChunk.trim()) {
       // User is actively speaking right now
       clearTimeout(simState.silenceTimer);
@@ -336,6 +337,7 @@ function startSimulatedCall(direction) {
   simState.direction = direction;
   simState.startTime = Date.now();
   simState.transcript = [];
+  simState.messages = [];
   simState.speechAccumulator = '';
 
   document.getElementById('simCallControls').style.display = 'none';
@@ -441,7 +443,7 @@ async function handleUserSpeech(userText) {
         callerPhone: '+1-LOCAL-USER',
         callSid: simState.callSid,
         userText,
-        history: simState.transcript
+        history: simState.messages.length ? simState.messages : simState.transcript
       })
     });
 
@@ -483,6 +485,7 @@ function addSimMessage(role, text) {
     div.className = 'sim-msg sim-msg-user';
     div.innerHTML = `<strong>You:</strong> ${escapeHtml(text)}`;
     simState.transcript.push(`[${time}] USER: ${text}`);
+    if (simState.messages) simState.messages.push({ role: 'user', content: text });
   } else if (role === 'assistant') {
     div.className = 'sim-msg sim-msg-ai';
     let persona = 'Ananya (AI Assistant)';
@@ -491,6 +494,7 @@ function addSimMessage(role, text) {
     else if (simState.voiceType === 'western-female') persona = 'Aura (AI Assistant)';
     div.innerHTML = `<strong>${persona}:</strong> ${escapeHtml(text)}`;
     simState.transcript.push(`[${time}] ${persona.toUpperCase()}: ${text}`);
+    if (simState.messages) simState.messages.push({ role: 'assistant', content: text });
   } else {
     div.className = 'sim-msg sim-msg-tool';
     div.innerHTML = escapeHtml(text);
