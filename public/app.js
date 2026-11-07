@@ -38,6 +38,7 @@ let simState = {
   isListening: false,
   selectedLang: 'gu-IN',
   voiceType: 'indian-female',
+  speechSpeed: 0.90,
   speechAccumulator: '',
   silenceTimer: null
 };
@@ -46,8 +47,10 @@ let simState = {
 document.addEventListener('DOMContentLoaded', () => {
   const initialVoice = document.getElementById('simVoiceAccent');
   const initialLang = document.getElementById('simLanguage');
+  const initialSpeed = document.getElementById('simSpeechSpeed');
   if (initialVoice) simState.voiceType = initialVoice.value;
   if (initialLang) simState.selectedLang = initialLang.value;
+  if (initialSpeed) simState.speechSpeed = parseFloat(initialSpeed.value) || 0.90;
 
   fetchSystemStatus();
   fetchCalls();
@@ -174,11 +177,29 @@ function changeVoiceAccent(type) {
   if (setupVoice && setupVoice.value !== type) setupVoice.value = type;
 }
 
+function changeSpeechSpeed(val) {
+  const speed = parseFloat(val) || 0.90;
+  simState.speechSpeed = speed;
+  const activeSpeed = document.getElementById('simActiveSpeed');
+  const setupSpeed = document.getElementById('simSpeechSpeed');
+  if (activeSpeed && parseFloat(activeSpeed.value) !== speed) activeSpeed.value = String(speed);
+  if (setupSpeed && parseFloat(setupSpeed.value) !== speed) setupSpeed.value = String(speed);
+
+  // If audio is currently playing in browser, dynamically update playback speed live!
+  if (currentSimAudio) {
+    try {
+      currentSimAudio.playbackRate = speed;
+    } catch (_) {}
+  }
+}
+
 function syncActiveSelectors() {
   const activeVoice = document.getElementById('simActiveVoice');
   const activeLang = document.getElementById('simActiveLang');
+  const activeSpeed = document.getElementById('simActiveSpeed');
   if (activeVoice) simState.voiceType = activeVoice.value;
   if (activeLang) simState.selectedLang = activeLang.value;
+  if (activeSpeed) simState.speechSpeed = parseFloat(activeSpeed.value) || 0.90;
 }
 
 function quickSend(text) {
@@ -209,7 +230,8 @@ async function playNeuralTTS(text, callback, lang = 'en') {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         text: cleanText,
-        voice: simState.voiceType
+        voice: simState.voiceType,
+        speed: simState.speechSpeed || 0.90
       })
     });
 
@@ -218,6 +240,9 @@ async function playNeuralTTS(text, callback, lang = 'en') {
     const blob = await res.blob();
     const audioUrl = URL.createObjectURL(blob);
     const audio = new Audio(audioUrl);
+    if (simState.speechSpeed) {
+      audio.playbackRate = simState.speechSpeed;
+    }
     currentSimAudio = audio;
 
     audio.onended = () => {
@@ -257,7 +282,7 @@ function fallbackLocalTTS(text, callback, lang = 'en') {
   const isWesternMale = simState.voiceType === 'western-male';
 
   utterance.pitch = (isIndianMale || isWesternMale) ? 0.90 : 1.06;
-  utterance.rate = 0.95;
+  utterance.rate = simState.speechSpeed || 0.90;
 
   const voices = (cachedVoices && cachedVoices.length) ? cachedVoices : window.speechSynthesis.getVoices();
   let matchedVoice = null;
@@ -296,17 +321,21 @@ function fallbackLocalTTS(text, callback, lang = 'en') {
 function startSimulatedCall(direction) {
   if (simState.active) return;
 
-  // Immediately read chosen voice and language from DOM setup selectors BEFORE starting!
+  // Immediately read chosen voice, language, and speech speed from DOM setup selectors BEFORE starting!
   const voiceSelect = document.getElementById('simVoiceAccent');
   const langSelect = document.getElementById('simLanguage');
+  const speedSelect = document.getElementById('simSpeechSpeed');
   if (voiceSelect) simState.voiceType = voiceSelect.value;
   if (langSelect) simState.selectedLang = langSelect.value;
+  if (speedSelect) simState.speechSpeed = parseFloat(speedSelect.value) || 0.90;
 
   // Sync to active header selectors
   const activeVoice = document.getElementById('simActiveVoice');
   const activeLang = document.getElementById('simActiveLang');
+  const activeSpeed = document.getElementById('simActiveSpeed');
   if (activeVoice) activeVoice.value = simState.voiceType;
   if (activeLang) activeLang.value = simState.selectedLang;
+  if (activeSpeed) activeSpeed.value = String(simState.speechSpeed);
 
   simState.active = true;
   simState.callSid = `sim_${Date.now()}`;

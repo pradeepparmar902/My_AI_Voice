@@ -59,6 +59,19 @@
               <option value="auto">🌐 Auto-Detect Language</option>
             </select>
           </div>
+
+          <div class="setup-item">
+            <span class="setup-step-badge">Step 3</span>
+            <label for="simSpeechSpeed">AI Speech Speed:</label>
+            <select id="simSpeechSpeed" class="lang-select" onchange="changeSpeechSpeed(this.value)">
+              <option value="0.75">🐢 0.75x (Very Relaxed & Slow)</option>
+              <option value="0.85">🍃 0.85x (Calm & Clear)</option>
+              <option value="0.90" selected>✨ 0.90x (Natural Conversational)</option>
+              <option value="1.00">🗣️ 1.00x (Standard)</option>
+              <option value="1.10">⚡ 1.10x (Brisk)</option>
+              <option value="1.25">🚀 1.25x (Fast)</option>
+            </select>
+          </div>
         </div>
 
         <div class="setup-actions">
@@ -94,6 +107,14 @@
               <option value="mr-IN">🇮🇳 मराठी</option>
               <option value="en-IN">🇮🇳 English (India)</option>
               <option value="auto">🌐 Auto</option>
+            </select>
+            <select id="simActiveSpeed" class="lang-select select-compact" onchange="changeSpeechSpeed(this.value); syncActiveSelectors();" title="Speech Speed">
+              <option value="0.75">🐢 0.75x Speed</option>
+              <option value="0.85">🍃 0.85x Speed</option>
+              <option value="0.90" selected>✨ 0.90x Speed (Natural)</option>
+              <option value="1.00">🗣️ 1.00x Speed</option>
+              <option value="1.10">⚡ 1.10x Speed</option>
+              <option value="1.25">🚀 1.25x Speed</option>
             </select>
             <button class="btn btn-danger btn-sm" id="endSimCallBtn" onclick="endSimulatedCall()">
               <span>🔴</span> Hang Up Call

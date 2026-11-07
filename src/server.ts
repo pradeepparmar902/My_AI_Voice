@@ -241,7 +241,7 @@ app.post('/api/simulator/end', async (req) => {
 
 // --- REST API: Studio-Grade Neural Text-to-Speech (OpenAI TTS) ---
 app.post('/api/tts', async (req, reply) => {
-  const { text, voice } = req.body as { text: string; voice?: string };
+  const { text, voice, speed } = req.body as { text: string; voice?: string; speed?: number | string };
   if (!text) {
     return reply.status(400).send({ error: 'Text is required.' });
   }
@@ -255,9 +255,19 @@ app.post('/api/tts', async (req, reply) => {
     const isMale = voice === 'indian-male' || voice === 'western-male';
     const chosenVoice = isMale ? 'echo' : 'nova';
 
+    // Parse speech speed (0.25 to 4.0 accepted by OpenAI tts-1, default 0.90 for natural telephone pace)
+    let parsedSpeed = 0.90;
+    if (speed !== undefined && speed !== null) {
+      const num = typeof speed === 'number' ? speed : parseFloat(String(speed));
+      if (!isNaN(num) && num > 0) {
+        parsedSpeed = Math.max(0.5, Math.min(2.0, num));
+      }
+    }
+
     const mp3 = await openai.audio.speech.create({
       model: 'tts-1',
       voice: chosenVoice,
+      speed: parsedSpeed,
       input: text.slice(0, 500)
     });
 
