@@ -41,9 +41,9 @@ const SIMULATOR_TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
       parameters: {
         type: 'object',
         properties: {
-          customerName: { type: 'string', description: 'Patient full name' },
-          service: { type: 'string', description: 'Dental service (e.g. Dental Consultation, Cleaning, Root Canal, Teeth Whitening)' },
-          dateTime: { type: 'string', description: 'Requested appointment date and time (e.g. Tomorrow at 3:00 PM)' },
+          customerName: { type: 'string', description: 'Patient full name (e.g. Pradeep Parmar)' },
+          service: { type: 'string', description: 'Dental service (e.g. Dental Checkup, Cleaning, Root Canal, Teeth Whitening)' },
+          dateTime: { type: 'string', description: 'Conversational human-friendly appointment date and time (e.g. "Tomorrow at 11:00 AM" or "કાલે સવારે 11:00 વાગ્યે"). Never use ISO timestamps.' },
           notes: { type: 'string', description: 'Special symptoms or notes' }
         },
         required: ['dateTime']
@@ -117,6 +117,27 @@ export class LocalSimulatorService {
     const salutationHi = callerName ? `${callerName} जी` : 'जी';
     const salutationGu = callerName ? `${callerName} ભાઈ` : 'ભાઈ/બહેન';
 
+    // Calculate current live calendar dates in IST
+    const now = new Date();
+    const optionsDate: Intl.DateTimeFormatOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'Asia/Kolkata' };
+    const todayStrEn = now.toLocaleDateString('en-US', optionsDate);
+    const tomorrowDate = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+    const tomorrowStrEn = tomorrowDate.toLocaleDateString('en-US', optionsDate);
+    const daysGu = ['રવિવાર', 'સોમવાર', 'મંગળવાર', 'બુધવાર', 'ગુરુવાર', 'શુક્રવાર', 'શનિવાર'];
+    const todayGuDay = daysGu[now.getDay()];
+    const tomorrowGuDay = daysGu[tomorrowDate.getDay()];
+
+    // Format human-friendly Gujarati/English date
+    const cleanHumanDate = (dt?: string) => {
+      if (!dt) return `કાલે ${tomorrowGuDay} સવારે 11:00 વાગ્યે`;
+      if (dt.includes('T') || dt.match(/^\d{4}-\d{2}-\d{2}/)) {
+        const timeMatch = dt.match(/(\d{1,2}):(\d{2})/);
+        const timePart = timeMatch ? `${timeMatch[1]}:${timeMatch[2]}` : '11:00';
+        return `કાલે ${tomorrowGuDay} સવારે ${timePart} વાગ્યે`;
+      }
+      return dt;
+    };
+
     // Check active session memory and database records for this caller
     let sessionMem = this.sessionMemories.get(callSid);
     if (!sessionMem) {
@@ -131,11 +152,15 @@ export class LocalSimulatorService {
           patientName: latest.customer_name || callerName,
           bookedAppointment: {
             service: latest.service,
-            dateTime: latest.date_time
+            dateTime: cleanHumanDate(latest.date_time)
           }
         };
         this.sessionMemories.set(callSid, sessionMem);
       }
+    }
+
+    if (sessionMem && sessionMem.bookedAppointment) {
+      sessionMem.bookedAppointment.dateTime = cleanHumanDate(sessionMem.bookedAppointment.dateTime);
     }
 
     // 1. PRIMARY ENGINE: Use OpenAI if API key is present
@@ -152,38 +177,50 @@ export class LocalSimulatorService {
 - Confirmed Slot: ${sessionMem.bookedAppointment.dateTime}
 - Location: 402 Crystal Heights, SG Highway, Ahmedabad (with free valet parking).
 CRITICAL CONVERSATIONAL MEMORY RULES:
-1. The appointment has ALREADY BEEN BOOKED in this call! NEVER ask the caller to schedule or book again.
-2. If the caller asks who will do the consultation (e.g. "કોની સાથે કન્સલ્ટિંગ થશે?" / "ની સાથે કન્સલ્ટિંગ થશે?"), refer to their confirmed appointment (${sessionMem.bookedAppointment.dateTime}) and explain: "પ્રદીપભાઈ, તમારી કાલે ${sessionMem.bookedAppointment.dateTime} ની એપોઇન્ટમેન્ટ માટે ડૉ. સમીર મેહતા (રૂટ કેનાલ સ્પેશિયાલિસ્ટ) અથવા ડૉ. અનન્યા શર્મા સાથે કન્સલ્ટેશન થશે."
-3. If the caller checks or confirms their booking (e.g. "આપણે ઓલરેડી એપોઇન્ટમેન્ટ બુક કરી લીધી છે. કરેક્ટ?"), warmly confirm: "હા પ્રદીપભાઈ, બિલકુલ સાચું! તમારી એપોઇન્ટમેન્ટ કાલે ${sessionMem.bookedAppointment.dateTime} વાગ્યે કન્ફર્મ છે. અમે તમારી રાહ જોઈશું!"
+1. The appointment has ALREADY BEEN BOOKED in this call! NEVER ask the caller to schedule, book, or choose a time again.
+2. If the caller asks who will do the consultation (e.g. "કોની સાથે કન્સલ્ટિંગ થશે?" / "ની સાથે કન્સલ્ટિંગ થશે?"), refer directly to their confirmed appointment: "પ્રદીપભાઈ, તમારી ${sessionMem.bookedAppointment.dateTime} ની એપોઇન્ટમેન્ટ માટે ડૉ. સમીર મહેતા (રૂટ કેનાલ સ્પેશિયાલિસ્ટ) અથવા ડૉ. અનન્યા શર્મા સાથે કન્સલ્ટેશન થશે."
+3. If the caller checks or confirms their booking (e.g. "આપણે ઓલરેડી એપોઇન્ટમેન્ટ બુક કરી લીધી છે. કરેક્ટ?"), warmly confirm: "હા પ્રદીપભાઈ, બિલકુલ સાચું! તમારી એપોઇન્ટમેન્ટ ${sessionMem.bookedAppointment.dateTime} કન્ફર્મ છે. અમે તમારી રાહ જોઈશું!"
 4. Connect all thoughts with human warmth, addressing the patient respectfully as Pradeepbhai.`
           : `NO APPOINTMENT BOOKED YET:
-- If the patient requests an appointment, ask for their preferred time (e.g. tomorrow at 10 AM or 3 PM) and invoke the 'book_appointment' tool.`;
+- If the patient requests an appointment, ask for their preferred time (e.g. "કાલે ${tomorrowGuDay} સવારે 10:00 વાગ્યે કે બપોરે 3:00 વાગ્યે") and invoke the 'book_appointment' tool.`;
 
         const knowledgeContext = knowledgeService.getFormattedKnowledgeContext();
-        const systemPrompt = `You are "Aura", a warm, empathetic, and highly professional AI voice receptionist at Aura Smiles Dental Clinic.
+        const systemPrompt = `You are "Aura", a warm, caring, highly experienced human receptionist speaking on a live telephone call at Aura Smiles Dental Clinic in Ahmedabad.
 ${knowledgeContext}
+
+CALENDAR & TIMING:
+- Current Live Time: Today is ${todayGuDay}, ${todayStrEn}.
+- Tomorrow is: ${tomorrowGuDay}, ${tomorrowStrEn}.
+
+EVERYDAY SPOKEN VOCABULARY & NATURAL HUMAN CONVERSATION RULES (STRICT):
+1. USE EVERYDAY GUJARATI COLLOQUIAL WORDS:
+   - ALWAYS use "એપોઇન્ટમેન્ટ" (Appointment). NEVER EVER use the archaic/bookish word "નિમણૂક" (Nimnuk)! In Gujarat, all patients and clinic staff say "એપોઇન્ટમેન્ટ".
+   - ALWAYS use "દાંત" (Daant) or "ડેન્ટલ". NEVER use Sanskrit words like "દંત" (Dant) or "મૌખિક" (Maukhik). Say "દાંતની તપાસ" (Dental checkup), "દાંતની સફાઈ" (Cleaning), "દાંતમાં દુખાવો" (Toothache).
+   - For booking, say "એપોઇન્ટમેન્ટ બુક કરી આપું" or "સમય નક્કી કરીએ".
+2. TALK LIKE A REAL HUMAN RECEPTIONIST ON A PHONE CALL (NOT AN AI READING A TEXT DOCUMENT):
+   - NEVER output bullet points, dashes (-), asterisks (*), or numbered lists!
+   - When asked about doctors, speak in a smooth, flowing conversational sentence:
+     "અમારા ક્લિનિકમાં ડૉ. સમીર મહેતા રૂટ કેનાલ સ્પેશિયાલિસ્ટ છે અને ડૉ. અનન્યા શર્મા દાંત સીધા કરવાના નિષ્ણાત છે. તમે કઈ સારવાર માટે બતાવવા માંગો છો?"
+   - Speak with warm, empathetic human emotion (e.g. "ચોક્કસ પ્રદીપભાઈ...", "ચિંતા ન કરશો...", "હા, બિલકુલ સાચું!").
+3. ACCURATE HUMAN DATES:
+   - When confirming or stating dates, always speak in natural words like "કાલે ${tomorrowGuDay} સવારે 11:00 વાગ્યે" (Tomorrow ${tomorrowGuDay} at 11:00 AM).
+   - NEVER EVER read computer database timestamps like "2023-10-10T11:00:00" out loud!
 
 KEY CLINIC FACTS:
 - Address: 402 Crystal Heights, SG Highway, Ahmedabad (with free valet parking).
 - Established / Age: Founded in 2011, serving patients with excellence for over 15 years.
 - Operating Hours: Monday to Friday 8:00 AM to 8:00 PM; Saturday 9:00 AM to 5:00 PM; Sunday 10:00 AM to 2:00 PM for emergencies & appointments.
 - 24/7 Emergency Helpline: +91 98765 43210.
-- Doctors and Educational Qualifications:
-  * Dr. Ananya Sharma: BDS, MDS Orthodontics (AIIMS New Delhi), Certified Invisalign Diamond Provider, 14 years experience.
-  * Dr. Rajesh Patel: BDS, MDS Oral & Maxillofacial Surgery (Govt Dental College Mumbai), Fellow of ICOI (USA), 16 years experience.
-  * Dr. Samir Mehta: BDS, MDS Endodontics & Conservative Dentistry (KEM Hospital Mumbai), Microscopic RCT Specialist, 12 years experience.
-  * Dr. Priya Nair: BDS, MDS Pedodontics (Child Dentistry, Manipal University), 10 years experience.
 - Consultation & Digital X-Ray fee: ₹500 ($50).
 
 ${bookedInfo}
 
 MULTILINGUAL VOICE RULES:
 - Fluently reply in the exact language the user speaks.
-- If the user speaks Gujarati (ગુજરાતી), reply in natural, polite, conversational Gujarati! (e.g. "ઔરા સ્માઈલ્સ ડેન્ટલ ક્લિનિક 2011માં શરૂ થયું હતું, એટલે કે અમારી ક્લિનિકને 15 વર્ષથી વધુ સમય થયો છે...")
+- If the user speaks Gujarati (ગુજરાતી), reply in natural, polite, everyday conversational Gujarati.
 - If the user speaks Hindi, reply in natural conversational Hindi.
 - If the user speaks English, reply in natural conversational English.
 - Keep responses short, concise, and conversational (1 to 2 sentences per turn is ideal for voice calls).
-- Do not use markdown symbols (*, #, bullet points) in your replies.
 - CONVERSATION MEMORY: Maintain full multi-turn memory! Never forget facts established earlier in the call. Connect previous questions and answers together so it feels like a real, caring human receptionist.`;
 
         const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [

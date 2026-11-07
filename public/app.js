@@ -351,13 +351,13 @@ function startSimulatedCall(direction) {
   simState.timerInterval = setInterval(updateSimTimer, 1000);
 
   // Initial greeting tailored to chosen language & voice persona
-  const isMale = simState.voiceType.includes('male');
+  const isMale = simState.voiceType === 'indian-male' || simState.voiceType === 'western-male';
   const personaName = isMale ? 'Rohan' : 'Ananya';
   let greeting = `Hello! Thanks for calling Aura Smiles Dental Clinic. My name is ${personaName}. How can I assist you with your dental care today?`;
   let langTag = 'en';
 
   if (simState.selectedLang === 'gu-IN' || simState.selectedLang === 'gu') {
-    greeting = `નમસ્તે! ઔરા સ્માઈલ્સ ડેન્ટલ ક્લિનિકમાં આપનું હાર્દિક સ્વાગત છે. હું તમારી સહાયક ${isMale ? 'રોહન' : 'અનન્યા'} બોલું છું. હું તમારી દાંતની સારવાર કે તપાસમાં શું મદદ કરી શકું?`;
+    greeting = `નમસ્તે! ઔરા સ્માઈલ્સ ડેન્ટલ ક્લિનિકમાં આપનું સ્વાગત છે. હું તમારી સહાયક ${isMale ? 'રોહન' : 'અનન્યા'} બોલું છું, હું તમારી દાંતની સારવાર કે એપોઇન્ટમેન્ટમાં શું મદદ કરી શકું?`;
     langTag = 'gu';
   } else if (simState.selectedLang === 'hi-IN' || simState.selectedLang === 'hi') {
     greeting = `नमस्ते! ऑरा स्माइल्स डेंटल क्लिनिक में आपका हार्दिक स्वागत है। मैं आपकी सहायक ${isMale ? 'रोहन' : 'अनन्या'} बोल रही हूँ। बताइए, मैं आपके दाँतों के इलाज में क्या सहायता कर सकती हूँ?`;
