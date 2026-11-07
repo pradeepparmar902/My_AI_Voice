@@ -231,7 +231,8 @@ async function playNeuralTTS(text, callback, lang = 'en') {
       body: JSON.stringify({
         text: cleanText,
         voice: simState.voiceType,
-        speed: simState.speechSpeed || 0.90
+        speed: simState.speechSpeed || 0.90,
+        lang: lang || simState.selectedLang || 'gu'
       })
     });
 

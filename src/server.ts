@@ -239,46 +239,84 @@ app.post('/api/simulator/end', async (req) => {
   return saved;
 });
 
-// --- REST API: Studio-Grade Neural Text-to-Speech (OpenAI TTS) ---
+// --- REST API: Studio-Grade Regional & Neural Text-to-Speech ---
 app.post('/api/tts', async (req, reply) => {
-  const { text, voice, speed } = req.body as { text: string; voice?: string; speed?: number | string };
+  const { text, voice, speed, lang } = req.body as { text: string; voice?: string; speed?: number | string; lang?: string };
   if (!text) {
     return reply.status(400).send({ error: 'Text is required.' });
   }
 
-  if (!config.openai.apiKey) {
-    return reply.status(400).send({ error: 'OpenAI API key not configured.' });
-  }
+  const cleanText = text.replace(/[*#]/g, '').trim();
 
-  try {
-    const openai = new OpenAI({ apiKey: config.openai.apiKey });
-    const isMale = voice === 'indian-male' || voice === 'western-male';
-    const chosenVoice = isMale ? 'echo' : 'nova';
+  // Detect language scripts
+  const isGujarati = /[\u0A80-\u0AFF]/.test(cleanText) || lang === 'gu' || lang === 'gu-IN';
+  const isHindi = /[\u0900-\u097F]/.test(cleanText) || lang === 'hi' || lang === 'hi-IN';
+  const isMarathi = lang === 'mr' || lang === 'mr-IN';
 
-    // Parse speech speed (0.25 to 4.0 accepted by OpenAI tts-1, default 0.90 for natural telephone pace)
-    let parsedSpeed = 0.90;
-    if (speed !== undefined && speed !== null) {
-      const num = typeof speed === 'number' ? speed : parseFloat(String(speed));
-      if (!isNaN(num) && num > 0) {
-        parsedSpeed = Math.max(0.5, Math.min(2.0, num));
+  let tl = 'en-IN';
+  if (isGujarati) tl = 'gu';
+  else if (isHindi) tl = 'hi';
+  else if (isMarathi) tl = 'mr';
+
+  // For Gujarati, Hindi & Marathi: Use Google Regional TTS which has native, authentic Indian pronunciation!
+  // (OpenAI tts-1 does not have native Gujarati phonemes and sounds severely distorted on Indian scripts)
+  if (isGujarati || isHindi || isMarathi) {
+    try {
+      const googleUrl = `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=${tl}&q=${encodeURIComponent(cleanText.slice(0, 300))}`;
+      const res = await fetch(googleUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+      });
+      if (res.ok) {
+        const buffer = Buffer.from(await res.arrayBuffer());
+        reply.header('Content-Type', 'audio/mpeg');
+        reply.header('Cache-Control', 'public, max-age=86400');
+        return reply.send(buffer);
       }
+    } catch (gErr) {
+      console.warn('[Google Regional TTS error, falling back]', gErr);
     }
-
-    const mp3 = await openai.audio.speech.create({
-      model: 'tts-1',
-      voice: chosenVoice,
-      speed: parsedSpeed,
-      input: text.slice(0, 500)
-    });
-
-    const buffer = Buffer.from(await mp3.arrayBuffer());
-    reply.header('Content-Type', 'audio/mpeg');
-    reply.header('Cache-Control', 'public, max-age=86400');
-    return reply.send(buffer);
-  } catch (err: any) {
-    console.error('[OpenAI TTS Error]', err);
-    return reply.status(500).send({ error: err.message });
   }
+
+  // For English: Use OpenAI Neural TTS if configured
+  if (config.openai.apiKey) {
+    try {
+      const openai = new OpenAI({ apiKey: config.openai.apiKey });
+      const isMale = voice === 'indian-male' || voice === 'western-male';
+      const chosenVoice = isMale ? 'echo' : 'nova';
+
+      const mp3 = await openai.audio.speech.create({
+        model: 'tts-1',
+        voice: chosenVoice,
+        input: cleanText.slice(0, 500)
+      });
+
+      const buffer = Buffer.from(await mp3.arrayBuffer());
+      reply.header('Content-Type', 'audio/mpeg');
+      reply.header('Cache-Control', 'public, max-age=86400');
+      return reply.send(buffer);
+    } catch (err: any) {
+      console.error('[OpenAI TTS Error]', err);
+    }
+  }
+
+  // Final fallback to Google English
+  try {
+    const googleUrl = `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=en-IN&q=${encodeURIComponent(cleanText.slice(0, 300))}`;
+    const res = await fetch(googleUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      }
+    });
+    if (res.ok) {
+      const buffer = Buffer.from(await res.arrayBuffer());
+      reply.header('Content-Type', 'audio/mpeg');
+      return reply.send(buffer);
+    }
+  } catch (_) {}
+
+  return reply.status(500).send({ error: 'TTS audio could not be generated.' });
 });
 
 // --- REST API: Trigger Outbound Call ---
