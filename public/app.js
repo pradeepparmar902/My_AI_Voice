@@ -192,13 +192,8 @@ function quickSend(text) {
 
 let currentSimAudio = null;
 
-// Play Cloud-Grade Indian Regional Voice (Seamless single audio without chunking)
-function playCloudTTS(text, lang, onFinish, onFallback) {
-  let tl = 'gu';
-  if (lang === 'hi') tl = 'hi';
-  else if (lang === 'mr') tl = 'mr';
-  else if (lang === 'en' || lang === 'en-IN') tl = 'en-IN';
-
+// Play Studio-Quality Human Neural Voice via OpenAI TTS
+async function playNeuralTTS(text, callback, lang = 'en') {
   const cleanText = text.replace(/[*#]/g, '').trim();
 
   if (currentSimAudio) {
@@ -206,52 +201,46 @@ function playCloudTTS(text, lang, onFinish, onFallback) {
     currentSimAudio = null;
   }
 
-  // Play as a single complete audio stream so it never halts at full stops or punctuation
-  const url = `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=${tl}&q=${encodeURIComponent(cleanText.slice(0, 250))}`;
-  const audio = new Audio(url);
-  currentSimAudio = audio;
+  updateSimStatus('AI Speaking (Human Voice)...', true);
 
-  updateSimStatus('AI Speaking...', true);
+  try {
+    const res = await fetch('/api/tts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        text: cleanText,
+        voice: simState.voiceType
+      })
+    });
 
-  audio.onended = () => {
-    updateSimStatus('Listening for your voice...', false);
-    if (onFinish) onFinish();
-  };
+    if (!res.ok) throw new Error('Neural TTS server error');
 
-  audio.onerror = () => {
-    console.warn('Cloud audio stream unavailable, falling back to browser synthesis');
-    if (onFallback) onFallback();
-    else if (onFinish) onFinish();
-  };
+    const blob = await res.blob();
+    const audioUrl = URL.createObjectURL(blob);
+    const audio = new Audio(audioUrl);
+    currentSimAudio = audio;
 
-  audio.play().catch(err => {
-    console.warn('Audio play catch, falling back to browser synthesis:', err);
-    if (onFallback) onFallback();
-    else if (onFinish) onFinish();
-  });
+    audio.onended = () => {
+      URL.revokeObjectURL(audioUrl);
+      updateSimStatus('Listening for your voice...', false);
+      if (callback) callback();
+    };
+
+    audio.onerror = () => {
+      URL.revokeObjectURL(audioUrl);
+      fallbackLocalTTS(cleanText, callback, lang);
+    };
+
+    await audio.play();
+  } catch (err) {
+    console.warn('Neural TTS unavailable, using fallback:', err);
+    fallbackLocalTTS(cleanText, callback, lang);
+  }
 }
 
-// Speak aloud: seamlessly handles regional languages and never stops mid-sentence
+// Speak aloud: uses studio-grade Neural Audio for authentic human tone
 function speakAloud(text, callback, lang = 'en') {
-  const cleanText = text.replace(/[*#]/g, '').trim();
-
-  // Check if browser has native voice available for this language
-  const voices = (cachedVoices && cachedVoices.length) ? cachedVoices : (window.speechSynthesis ? window.speechSynthesis.getVoices() : []);
-  const hasNativeVoice = voices.some(v => 
-    (lang === 'gu' && (v.lang.startsWith('gu') || v.name.toLowerCase().includes('gujarati'))) ||
-    (lang === 'hi' && (v.lang.startsWith('hi') || v.name.toLowerCase().includes('hindi'))) ||
-    (lang === 'mr' && (v.lang.startsWith('mr') || v.name.toLowerCase().includes('marathi')))
-  );
-
-  if (hasNativeVoice && 'speechSynthesis' in window) {
-    fallbackLocalTTS(cleanText, callback, lang);
-    return;
-  }
-
-  // Use single continuous Cloud Audio for rich natural Indian pronunciation
-  playCloudTTS(cleanText, lang, callback, () => {
-    fallbackLocalTTS(cleanText, callback, lang);
-  });
+  playNeuralTTS(text, callback, lang);
 }
 
 function fallbackLocalTTS(text, callback, lang = 'en') {
@@ -353,17 +342,17 @@ function startSimulatedCall(direction) {
   // Initial greeting tailored to chosen language & voice persona
   const isMale = simState.voiceType === 'indian-male' || simState.voiceType === 'western-male';
   const personaName = isMale ? 'Rohan' : 'Ananya';
-  let greeting = `Hello! Thanks for calling Aura Smiles Dental Clinic. My name is ${personaName}. How can I assist you with your dental care today?`;
+  let greeting = `Hello! Aura Dental Clinic. I am ${personaName}, how can I help you today?`;
   let langTag = 'en';
 
   if (simState.selectedLang === 'gu-IN' || simState.selectedLang === 'gu') {
-    greeting = `નમસ્તે! ઔરા સ્માઈલ્સ ડેન્ટલ ક્લિનિકમાં આપનું સ્વાગત છે. હું તમારી સહાયક ${isMale ? 'રોહન' : 'અનન્યા'} બોલું છું, હું તમારી દાંતની સારવાર કે એપોઇન્ટમેન્ટમાં શું મદદ કરી શકું?`;
+    greeting = `નમસ્તે જી! ઔરા ડેન્ટલ ક્લિનિક. હું ${isMale ? 'રોહન' : 'અનન્યા'}, બોલો ને હું તમારી શું મદદ કરું?`;
     langTag = 'gu';
   } else if (simState.selectedLang === 'hi-IN' || simState.selectedLang === 'hi') {
-    greeting = `नमस्ते! ऑरा स्माइल्स डेंटल क्लिनिक में आपका हार्दिक स्वागत है। मैं आपकी सहायक ${isMale ? 'रोहन' : 'अनन्या'} बोल रही हूँ। बताइए, मैं आपके दाँतों के इलाज में क्या सहायता कर सकती हूँ?`;
+    greeting = `नमस्ते जी! ऑरा डेंटल क्लिनिक। मैं ${isMale ? 'रोहन' : 'अनन्या'}, कहिए मैं आपकी क्या मदद करूँ?`;
     langTag = 'hi';
   } else if (simState.selectedLang === 'mr-IN' || simState.selectedLang === 'mr') {
-    greeting = `नमस्कार! ऑरा स्माइल्स डेंटल क्लिनिकमध्ये आपले सहर्ष स्वागत आहे. मी ${isMale ? 'रोहन' : 'अनन्या'}, सांगा मी आपल्या दातांच्या उपचारात काय मदत करू शकेन?`;
+    greeting = `नमस्कार जी! ऑरा डेंटल क्लिनिक. मी ${isMale ? 'रोहन' : 'अनन्या'}, सांगा मी आपली काय मदत करू?`;
     langTag = 'mr';
   }
 

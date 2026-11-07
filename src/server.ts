@@ -1,5 +1,6 @@
 import fastify from 'fastify';
 import WebSocket from 'ws';
+import OpenAI from 'openai';
 import fastifyWebsocket from '@fastify/websocket';
 import fastifyCors from '@fastify/cors';
 import fastifyFormbody from '@fastify/formbody';
@@ -236,6 +237,38 @@ app.post('/api/simulator/end', async (req) => {
   );
 
   return saved;
+});
+
+// --- REST API: Studio-Grade Neural Text-to-Speech (OpenAI TTS) ---
+app.post('/api/tts', async (req, reply) => {
+  const { text, voice } = req.body as { text: string; voice?: string };
+  if (!text) {
+    return reply.status(400).send({ error: 'Text is required.' });
+  }
+
+  if (!config.openai.apiKey) {
+    return reply.status(400).send({ error: 'OpenAI API key not configured.' });
+  }
+
+  try {
+    const openai = new OpenAI({ apiKey: config.openai.apiKey });
+    const isMale = voice === 'indian-male' || voice === 'western-male';
+    const chosenVoice = isMale ? 'echo' : 'nova';
+
+    const mp3 = await openai.audio.speech.create({
+      model: 'tts-1',
+      voice: chosenVoice,
+      input: text.slice(0, 500)
+    });
+
+    const buffer = Buffer.from(await mp3.arrayBuffer());
+    reply.header('Content-Type', 'audio/mpeg');
+    reply.header('Cache-Control', 'public, max-age=86400');
+    return reply.send(buffer);
+  } catch (err: any) {
+    console.error('[OpenAI TTS Error]', err);
+    return reply.status(500).send({ error: err.message });
+  }
 });
 
 // --- REST API: Trigger Outbound Call ---
