@@ -248,6 +248,48 @@ app.post('/api/tts', async (req, reply) => {
 
   const cleanText = text.replace(/[*#]/g, '').trim();
 
+  // 1. ELEVENLABS ENGINE: Hyper-realistic human voice (if configured)
+  if (config.elevenlabs && config.elevenlabs.apiKey) {
+    try {
+      const isMale = voice === 'indian-male' || voice === 'western-male' || voice === 'elevenlabs-male';
+      const voiceId = isMale 
+        ? (process.env.ELEVENLABS_MALE_VOICE_ID || 'onwK4e9ZLuTAKqWW03F9') // Daniel
+        : (config.elevenlabs.voiceId || '21m00Tcm4TlvDq8ikWAM'); // Rachel / Ananya
+
+      const elevenUrl = `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`;
+      const elevenRes = await fetch(elevenUrl, {
+        method: 'POST',
+        headers: {
+          'xi-api-key': config.elevenlabs.apiKey,
+          'Content-Type': 'application/json',
+          'Accept': 'audio/mpeg'
+        },
+        body: JSON.stringify({
+          text: cleanText,
+          model_id: config.elevenlabs.model || 'eleven_multilingual_v2',
+          voice_settings: {
+            stability: 0.5,
+            similarity_boost: 0.8,
+            style: 0.0,
+            use_speaker_boost: true
+          }
+        })
+      });
+
+      if (elevenRes.ok) {
+        const buffer = Buffer.from(await elevenRes.arrayBuffer());
+        reply.header('Content-Type', 'audio/mpeg');
+        reply.header('Cache-Control', 'public, max-age=86400');
+        return reply.send(buffer);
+      } else {
+        const errJson = await elevenRes.text();
+        console.warn('[ElevenLabs TTS error, falling back]', errJson);
+      }
+    } catch (eErr) {
+      console.warn('[ElevenLabs TTS exception, falling back]', eErr);
+    }
+  }
+
   // Detect language scripts
   const isGujarati = /[\u0A80-\u0AFF]/.test(cleanText) || lang === 'gu' || lang === 'gu-IN';
   const isHindi = /[\u0900-\u097F]/.test(cleanText) || lang === 'hi' || lang === 'hi-IN';
@@ -259,7 +301,6 @@ app.post('/api/tts', async (req, reply) => {
   else if (isMarathi) tl = 'mr';
 
   // For Gujarati, Hindi & Marathi: Use Google Regional TTS which has native, authentic Indian pronunciation!
-  // (OpenAI tts-1 does not have native Gujarati phonemes and sounds severely distorted on Indian scripts)
   if (isGujarati || isHindi || isMarathi) {
     try {
       const googleUrl = `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=${tl}&q=${encodeURIComponent(cleanText.slice(0, 300))}`;
@@ -445,11 +486,27 @@ app.get('/api/status', async () => {
   return {
     openaiConfigured: !!config.openai.apiKey,
     twilioConfigured: twilioService.isConfigured(),
+    elevenlabsConfigured: !!(config.elevenlabs && config.elevenlabs.apiKey),
+    elevenlabsVoice: config.elevenlabs?.voiceId || '21m00Tcm4TlvDq8ikWAM',
     twilioNumber: config.twilio.phoneNumber || 'Not configured',
     model: config.openai.realtimeModel,
     voice: config.openai.voice,
     publicUrl: config.publicUrl || 'Localhost (Needs tunnel/domain for carrier calls)'
   };
+});
+
+// --- REST API: Configure ElevenLabs API Key Live ---
+app.post('/api/config/elevenlabs', async (req, reply) => {
+  const { apiKey, voiceId } = req.body as { apiKey: string; voiceId?: string };
+  if (!apiKey) {
+    return reply.status(400).send({ error: 'ElevenLabs API key is required.' });
+  }
+  if (!config.elevenlabs) {
+    config.elevenlabs = { apiKey: '', voiceId: '21m00Tcm4TlvDq8ikWAM', model: 'eleven_multilingual_v2' };
+  }
+  config.elevenlabs.apiKey = apiKey.trim();
+  if (voiceId) config.elevenlabs.voiceId = voiceId.trim();
+  return reply.send({ success: true, message: 'ElevenLabs API Key configured successfully.' });
 });
 
 // --- REST API: Update System Prompt ---

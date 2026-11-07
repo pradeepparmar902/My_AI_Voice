@@ -28,7 +28,14 @@ Guidelines:
 - Consult the verified knowledge base to answer company-specific queries accurately in whichever language the caller is speaking.`
   },
 
-  // Twilio Telephony Configuration
+    // ElevenLabs Voice Configuration (Gold Standard Studio AI Voice)
+    elevenlabs: {
+      apiKey: process.env.ELEVENLABS_API_KEY || '',
+      voiceId: process.env.ELEVENLABS_VOICE_ID || '21m00Tcm4TlvDq8ikWAM', // Rachel / Ananya
+      model: process.env.ELEVENLABS_MODEL || 'eleven_multilingual_v2'
+    },
+
+    // Twilio Telephony Configuration
   twilio: {
     accountSid: process.env.TWILIO_ACCOUNT_SID || '',
     authToken: process.env.TWILIO_AUTH_TOKEN || '',

@@ -37,7 +37,7 @@ let simState = {
   recognition: null,
   isListening: false,
   selectedLang: 'gu-IN',
-  voiceType: 'indian-female',
+  voiceType: 'elevenlabs-female',
   speechSpeed: 0.90,
   speechAccumulator: '',
   silenceTimer: null
@@ -494,8 +494,10 @@ function addSimMessage(role, text) {
     if (simState.messages) simState.messages.push({ role: 'user', content: text });
   } else if (role === 'assistant') {
     div.className = 'sim-msg sim-msg-ai';
-    let persona = 'Ananya (AI Assistant)';
-    if (simState.voiceType === 'indian-male') persona = 'Rohan (AI Assistant)';
+    let persona = 'Ananya (ElevenLabs Studio Voice)';
+    if (simState.voiceType === 'elevenlabs-male') persona = 'Rohan (ElevenLabs Studio Voice)';
+    else if (simState.voiceType === 'indian-female') persona = 'Ananya (AI Assistant)';
+    else if (simState.voiceType === 'indian-male') persona = 'Rohan (AI Assistant)';
     else if (simState.voiceType === 'western-male') persona = 'David (AI Assistant)';
     else if (simState.voiceType === 'western-female') persona = 'Aura (AI Assistant)';
     div.innerHTML = `<strong>${persona}:</strong> ${escapeHtml(text)}`;
@@ -562,6 +564,9 @@ async function fetchSystemStatus() {
 
     const statusBadges = document.getElementById('statusBadges');
     statusBadges.innerHTML = `
+      <span class="badge ${data.elevenlabsConfigured ? 'badge-success' : 'badge-warning'}">
+        ● ElevenLabs: ${data.elevenlabsConfigured ? '✨ Connected (Studio Voice)' : 'Ready to Connect'}
+      </span>
       <span class="badge ${data.openaiConfigured ? 'badge-success' : 'badge-warning'}">
         ● OpenAI: ${data.openaiConfigured ? 'Connected' : 'Free Simulator Mode'}
       </span>
@@ -569,6 +574,18 @@ async function fetchSystemStatus() {
         ● Twilio: ${data.twilioConfigured ? `Ready (${data.twilioNumber})` : 'Webphone Mode'}
       </span>
     `;
+
+    // Update ElevenLabs UI Badge
+    const elBadge = document.getElementById('elevenlabsBadge');
+    if (elBadge) {
+      if (data.elevenlabsConfigured) {
+        elBadge.className = 'pill pill-success';
+        elBadge.textContent = 'Active (Studio Realism)';
+      } else {
+        elBadge.className = 'pill pill-warning';
+        elBadge.textContent = 'Not Configured (Using Google/OpenAI)';
+      }
+    }
 
     // Update Webhook URL Display
     const inboundUrl = window.location.origin + '/twiml/incoming';
@@ -579,6 +596,44 @@ async function fetchSystemStatus() {
     }
   } catch (err) {
     console.error('Failed to fetch status:', err);
+  }
+}
+
+// Connect ElevenLabs API Key Live
+async function saveElevenLabsKey() {
+  const input = document.getElementById('elevenlabsKeyInput');
+  const feedback = document.getElementById('elevenlabsFeedback');
+  const apiKey = input ? input.value.trim() : '';
+
+  if (!apiKey) {
+    alert('Please enter your ElevenLabs API key.');
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/config/elevenlabs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ apiKey })
+    });
+    const data = await res.json();
+    if (data.success) {
+      if (input) input.value = '';
+      if (feedback) {
+        feedback.style.display = 'block';
+        feedback.style.color = '#4ade80';
+        feedback.textContent = '✅ ElevenLabs API Key connected! Now using studio-grade voice.';
+      }
+      fetchSystemStatus();
+    } else {
+      throw new Error(data.error || 'Failed to connect ElevenLabs');
+    }
+  } catch (err) {
+    if (feedback) {
+      feedback.style.display = 'block';
+      feedback.style.color = '#f87171';
+      feedback.textContent = `❌ ${err.message}`;
+    }
   }
 }
 

@@ -41,10 +41,12 @@
             <span class="setup-step-badge">Step 1</span>
             <label for="simVoiceAccent">Voice Persona:</label>
             <select id="simVoiceAccent" class="lang-select" onchange="changeVoiceAccent(this.value)">
-              <option value="indian-female" selected>👩 Indian Female (Ananya / Neerja)</option>
-              <option value="indian-male">👨 Indian Male (Rohan / Madhur)</option>
-              <option value="western-female">👱‍♀️ Western Female (Aura / Samantha)</option>
-              <option value="western-male">👱‍♂️ Western Male (David)</option>
+              <option value="elevenlabs-female" selected>✨ ElevenLabs Studio (Rachel / Ananya - Best)</option>
+              <option value="elevenlabs-male">✨ ElevenLabs Studio (Daniel / Rohan - Best)</option>
+              <option value="indian-female">👩 Indian Regional (Google / Neerja)</option>
+              <option value="indian-male">👨 Indian Regional (Google / Madhur)</option>
+              <option value="western-female">👱‍♀️ Western Female (OpenAI Nova)</option>
+              <option value="western-male">👱‍♂️ Western Male (OpenAI Echo)</option>
             </select>
           </div>
 
@@ -96,8 +98,10 @@
           </div>
           <div class="sim-header-actions">
             <select id="simActiveVoice" class="lang-select select-compact" onchange="changeVoiceAccent(this.value); syncActiveSelectors();" title="Active Voice">
-              <option value="indian-female">👩 Indian Female</option>
-              <option value="indian-male">👨 Indian Male</option>
+              <option value="elevenlabs-female">✨ ElevenLabs Female</option>
+              <option value="elevenlabs-male">✨ ElevenLabs Male</option>
+              <option value="indian-female">👩 Indian Regional</option>
+              <option value="indian-male">👨 Indian Regional</option>
               <option value="western-female">👱‍♀️ Western Female</option>
               <option value="western-male">👱‍♂️ Western Male</option>
             </select>
@@ -234,6 +238,23 @@
             <button type="submit" class="btn btn-success">Save Instructions</button>
           </div>
         </form>
+
+        <!-- ElevenLabs Studio Voice Integration Box -->
+        <div class="webhook-info-box" style="margin-top: 14px; border-color: rgba(168, 85, 247, 0.4); background: rgba(168, 85, 247, 0.06);">
+          <div class="webhook-header" style="justify-content: space-between; display: flex;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span class="icon">✨</span>
+              <strong>ElevenLabs Studio AI Voice</strong>
+            </div>
+            <span id="elevenlabsBadge" class="pill pill-warning">Checking...</span>
+          </div>
+          <p class="webhook-desc" style="margin-bottom: 8px;">Connect ElevenLabs for the world's #1 hyper-realistic human voice with natural breathing and emotion:</p>
+          <div style="display: flex; gap: 8px;">
+            <input type="password" id="elevenlabsKeyInput" placeholder="Paste ElevenLabs xi-api-key here..." style="flex: 1; padding: 6px 10px; font-size: 12px; background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border-color); border-radius: 6px; color: #fff;" />
+            <button class="btn btn-sm btn-primary" type="button" onclick="saveElevenLabsKey()">Save Key</button>
+          </div>
+          <div id="elevenlabsFeedback" style="font-size: 11px; margin-top: 5px; display: none;"></div>
+        </div>
 
         <hr class="divider" />
 
