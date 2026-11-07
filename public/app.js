@@ -192,79 +192,66 @@ function quickSend(text) {
 
 let currentSimAudio = null;
 
-// Play Cloud-Grade Indian Regional Voice (Gujarati / Hindi / Marathi / Indian English)
+// Play Cloud-Grade Indian Regional Voice (Seamless single audio without chunking)
 function playCloudTTS(text, lang, onFinish, onFallback) {
   let tl = 'gu';
   if (lang === 'hi') tl = 'hi';
   else if (lang === 'mr') tl = 'mr';
   else if (lang === 'en' || lang === 'en-IN') tl = 'en-IN';
 
-  // Break text into sentences of <= 150 chars for seamless streaming
-  const sentences = text.match(/[^.!?।]+[.!?।]+|[^.!?।]+/g) || [text];
-  const chunks = [];
-  let currentChunk = '';
-  for (const s of sentences) {
-    if ((currentChunk + ' ' + s).trim().length > 150) {
-      if (currentChunk.trim()) chunks.push(currentChunk.trim());
-      currentChunk = s;
-    } else {
-      currentChunk += ' ' + s;
-    }
-  }
-  if (currentChunk.trim()) chunks.push(currentChunk.trim());
+  const cleanText = text.replace(/[*#]/g, '').trim();
 
-  let chunkIdx = 0;
   if (currentSimAudio) {
     try { currentSimAudio.pause(); } catch (_) {}
     currentSimAudio = null;
   }
 
-  updateSimStatus('AI Speaking (Cloud Audio)...', true);
+  // Play as a single complete audio stream so it never halts at full stops or punctuation
+  const url = `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=${tl}&q=${encodeURIComponent(cleanText.slice(0, 250))}`;
+  const audio = new Audio(url);
+  currentSimAudio = audio;
 
-  function playNextChunk() {
-    if (!simState.active) {
-      updateSimStatus('Call Ended', false);
-      return;
-    }
-    if (chunkIdx >= chunks.length) {
-      updateSimStatus('Listening for your voice...', false);
-      if (onFinish) onFinish();
-      return;
-    }
+  updateSimStatus('AI Speaking...', true);
 
-    const chunk = chunks[chunkIdx++];
-    const url = `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=${tl}&q=${encodeURIComponent(chunk)}`;
-    const audio = new Audio(url);
-    currentSimAudio = audio;
+  audio.onended = () => {
+    updateSimStatus('Listening for your voice...', false);
+    if (onFinish) onFinish();
+  };
 
-    audio.onended = playNextChunk;
-    audio.onerror = () => {
-      console.warn('Cloud audio stream blocked or offline, falling back to local synthesis');
-      if (onFallback) onFallback();
-      else if (onFinish) onFinish();
-    };
+  audio.onerror = () => {
+    console.warn('Cloud audio stream unavailable, falling back to browser synthesis');
+    if (onFallback) onFallback();
+    else if (onFinish) onFinish();
+  };
 
-    audio.play().catch(err => {
-      console.warn('Audio playback failed, falling back to local synthesis:', err);
-      if (onFallback) onFallback();
-      else if (onFinish) onFinish();
-    });
-  }
-
-  playNextChunk();
+  audio.play().catch(err => {
+    console.warn('Audio play catch, falling back to browser synthesis:', err);
+    if (onFallback) onFallback();
+    else if (onFinish) onFinish();
+  });
 }
 
-// Speak aloud using Cloud Audio for Indian regional languages, or fallback to browser TTS
+// Speak aloud: seamlessly handles regional languages and never stops mid-sentence
 function speakAloud(text, callback, lang = 'en') {
-  // If speaking Gujarati, Hindi, Marathi, or Indian English, prioritize Cloud Neural Audio!
-  if (lang === 'gu' || lang === 'hi' || lang === 'mr' || simState.voiceType.startsWith('indian')) {
-    playCloudTTS(text, lang, callback, () => {
-      fallbackLocalTTS(text, callback, lang);
-    });
+  const cleanText = text.replace(/[*#]/g, '').trim();
+
+  // Check if browser has native voice available for this language
+  const voices = (cachedVoices && cachedVoices.length) ? cachedVoices : (window.speechSynthesis ? window.speechSynthesis.getVoices() : []);
+  const hasNativeVoice = voices.some(v => 
+    (lang === 'gu' && (v.lang.startsWith('gu') || v.name.toLowerCase().includes('gujarati'))) ||
+    (lang === 'hi' && (v.lang.startsWith('hi') || v.name.toLowerCase().includes('hindi'))) ||
+    (lang === 'mr' && (v.lang.startsWith('mr') || v.name.toLowerCase().includes('marathi')))
+  );
+
+  if (hasNativeVoice && 'speechSynthesis' in window) {
+    fallbackLocalTTS(cleanText, callback, lang);
     return;
   }
 
-  fallbackLocalTTS(text, callback, lang);
+  // Use single continuous Cloud Audio for rich natural Indian pronunciation
+  playCloudTTS(cleanText, lang, callback, () => {
+    fallbackLocalTTS(cleanText, callback, lang);
+  });
 }
 
 function fallbackLocalTTS(text, callback, lang = 'en') {
