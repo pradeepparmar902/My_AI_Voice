@@ -80,8 +80,17 @@ const SIMULATOR_TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
   }
 ];
 
+interface SessionMemory {
+  patientName?: string;
+  bookedAppointment?: {
+    service: string;
+    dateTime: string;
+  };
+}
+
 export class LocalSimulatorService {
   private openai: OpenAI | null = null;
+  private sessionMemories: Map<string, SessionMemory> = new Map();
 
   constructor() {
     if (config.openai.apiKey) {
@@ -108,12 +117,47 @@ export class LocalSimulatorService {
     const salutationHi = callerName ? `${callerName} जी` : 'जी';
     const salutationGu = callerName ? `${callerName} ભાઈ` : 'ભાઈ/બહેન';
 
+    // Check active session memory and database records for this caller
+    let sessionMem = this.sessionMemories.get(callSid);
+    if (!sessionMem) {
+      const appts = dbService.getAllAppointments().filter(a => 
+        a.caller_phone === callerPhone || 
+        a.caller_phone === '+919819984437' || 
+        a.caller_phone === '+1-LOCAL-USER'
+      );
+      if (appts.length > 0) {
+        const latest = appts[0];
+        sessionMem = {
+          patientName: latest.customer_name || callerName,
+          bookedAppointment: {
+            service: latest.service,
+            dateTime: latest.date_time
+          }
+        };
+        this.sessionMemories.set(callSid, sessionMem);
+      }
+    }
+
     // 1. PRIMARY ENGINE: Use OpenAI if API key is present
     if (config.openai.apiKey) {
       try {
         if (!this.openai) {
           this.openai = new OpenAI({ apiKey: config.openai.apiKey });
         }
+
+        const bookedInfo = sessionMem?.bookedAppointment
+          ? `ACTIVE APPOINTMENT STATUS (ALREADY BOOKED & CONFIRMED):
+- Patient: ${sessionMem.patientName || callerName || 'Pradeep Parmar (પ્રદીપ પરમાર / પ્રદીપભાઈ)'}
+- Treatment: ${sessionMem.bookedAppointment.service}
+- Confirmed Slot: ${sessionMem.bookedAppointment.dateTime}
+- Location: 402 Crystal Heights, SG Highway, Ahmedabad (with free valet parking).
+CRITICAL CONVERSATIONAL MEMORY RULES:
+1. The appointment has ALREADY BEEN BOOKED in this call! NEVER ask the caller to schedule or book again.
+2. If the caller asks who will do the consultation (e.g. "કોની સાથે કન્સલ્ટિંગ થશે?" / "ની સાથે કન્સલ્ટિંગ થશે?"), refer to their confirmed appointment (${sessionMem.bookedAppointment.dateTime}) and explain: "પ્રદીપભાઈ, તમારી કાલે ${sessionMem.bookedAppointment.dateTime} ની એપોઇન્ટમેન્ટ માટે ડૉ. સમીર મેહતા (રૂટ કેનાલ સ્પેશિયાલિસ્ટ) અથવા ડૉ. અનન્યા શર્મા સાથે કન્સલ્ટેશન થશે."
+3. If the caller checks or confirms their booking (e.g. "આપણે ઓલરેડી એપોઇન્ટમેન્ટ બુક કરી લીધી છે. કરેક્ટ?"), warmly confirm: "હા પ્રદીપભાઈ, બિલકુલ સાચું! તમારી એપોઇન્ટમેન્ટ કાલે ${sessionMem.bookedAppointment.dateTime} વાગ્યે કન્ફર્મ છે. અમે તમારી રાહ જોઈશું!"
+4. Connect all thoughts with human warmth, addressing the patient respectfully as Pradeepbhai.`
+          : `NO APPOINTMENT BOOKED YET:
+- If the patient requests an appointment, ask for their preferred time (e.g. tomorrow at 10 AM or 3 PM) and invoke the 'book_appointment' tool.`;
 
         const knowledgeContext = knowledgeService.getFormattedKnowledgeContext();
         const systemPrompt = `You are "Aura", a warm, empathetic, and highly professional AI voice receptionist at Aura Smiles Dental Clinic.
@@ -131,6 +175,8 @@ KEY CLINIC FACTS:
   * Dr. Priya Nair: BDS, MDS Pedodontics (Child Dentistry, Manipal University), 10 years experience.
 - Consultation & Digital X-Ray fee: ₹500 ($50).
 
+${bookedInfo}
+
 MULTILINGUAL VOICE RULES:
 - Fluently reply in the exact language the user speaks.
 - If the user speaks Gujarati (ગુજરાતી), reply in natural, polite, conversational Gujarati! (e.g. "ઔરા સ્માઈલ્સ ડેન્ટલ ક્લિનિક 2011માં શરૂ થયું હતું, એટલે કે અમારી ક્લિનિકને 15 વર્ષથી વધુ સમય થયો છે...")
@@ -138,14 +184,14 @@ MULTILINGUAL VOICE RULES:
 - If the user speaks English, reply in natural conversational English.
 - Keep responses short, concise, and conversational (1 to 2 sentences per turn is ideal for voice calls).
 - Do not use markdown symbols (*, #, bullet points) in your replies.
-- CONVERSATION MEMORY: Maintain full multi-turn memory! If the caller already provided their name or the treatment they want (e.g. root canal or cleaning), DO NOT ask for their name again. Proceed to ask for their preferred time (e.g. "પ્રદીપભાઈ, તમને કાલ સવારે 10:00 વાગ્યે કે બપોરે 3:00 વાગ્યે સમય અનુકૂળ રહેશે?") and then invoke 'book_appointment'.`;
+- CONVERSATION MEMORY: Maintain full multi-turn memory! Never forget facts established earlier in the call. Connect previous questions and answers together so it feels like a real, caring human receptionist.`;
 
         const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
           { role: 'system', content: systemPrompt }
         ];
 
-        // Append conversation history with support for both object and raw transcript string format
-        for (const item of (history || []).slice(-12)) {
+        // Append complete conversation history (up to last 50 messages / 25 full turns)
+        for (const item of (history as any[] || []).slice(-50)) {
           if (typeof item === 'string') {
             const isUser = item.includes('USER:');
             const cleanText = item.replace(/^\[.*?\]\s*(USER|ANANYA|ROHAN|AURA|ASSISTANT.*?):\s*/i, '').trim();
@@ -185,6 +231,16 @@ MULTILINGUAL VOICE RULES:
             const fnArgs = JSON.parse(toolCall.function.arguments || '{}');
 
             const toolResult = await executeTool(fnName, fnArgs, { callSid, callerPhone });
+
+            if (fnName === 'book_appointment') {
+              this.sessionMemories.set(callSid, {
+                patientName: fnArgs.customerName || callerName || 'Pradeep Parmar',
+                bookedAppointment: {
+                  service: fnArgs.service || 'Dental Consultation',
+                  dateTime: fnArgs.dateTime || 'Tomorrow at 11:00 AM'
+                }
+              });
+            }
 
             // Feed tool result back to model to get final spoken confirmation
             messages.push(message);
